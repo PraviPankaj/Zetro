@@ -11,10 +11,10 @@ services:
   - type: web
     name: zetro-api
     runtime: python
-    rootDir: backend
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: PYTHONPATH=. uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # Paths from repo root (works even if Root Directory is not set in dashboard)
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && PYTHONPATH=. uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION
@@ -54,10 +54,9 @@ services:
   - type: web
     name: zetro-web
     runtime: node
-    rootDir: apps/web
     plan: free
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: cd apps/web && npm install && npm run build
+    startCommand: cd apps/web && npm start
     envVars:
       - key: NODE_VERSION
         value: "20"

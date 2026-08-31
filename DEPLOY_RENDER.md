@@ -58,15 +58,15 @@ In Render → **zetro-api** → **Environment**:
 ## Manual deploy (without Blueprint)
 
 **API** (Web Service, Python):
-- Root directory: `backend`
-- Build: `pip install -r requirements.txt`
-- Start: `PYTHONPATH=. uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- Root directory: leave **empty** (repo root) — build uses `backend/requirements.txt`
+- Build: `pip install -r backend/requirements.txt`
+- Start: `cd backend && PYTHONPATH=. uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 - Link Postgres → `DATABASE_URL`
 
 **Web** (Web Service, Node):
-- Root directory: `apps/web`
-- Build: `npm install && npm run build`
-- Start: `npm start`
+- Root directory: leave **empty** (repo root)
+- Build: `cd apps/web && npm install && npm run build`
+- Start: `cd apps/web && npm start`
 - Env: `NEXT_PUBLIC_API_URL=https://<your-api>.onrender.com`
 
 **API env (minimum):**
