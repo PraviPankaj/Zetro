@@ -27,6 +27,11 @@ def create_app() -> FastAPI:
     app.include_router(api_router, prefix=settings.api_prefix)
     app.mount(settings.media_url_prefix, StaticFiles(directory=settings.media_root), name="media")
 
+    @app.get("/")
+    @app.head("/")
+    def root():
+        return {"status": "ok", "app": settings.app_name}
+
     @app.get("/health")
     def health():
         return {"status": "ok", "app": settings.app_name}
