@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import CategoryNav from "../../../components/store/CategoryNav";
-import { api } from "../../../lib/api";
-import { filterProducts, findCategory, money } from "../../../lib/storefront";
+import CategoryNav from "../../../../components/store/CategoryNav";
+import { api } from "../../../../lib/api";
+import { filterProducts, findCategory, money } from "../../../../lib/storefront";
 
 function CategoryPageContent() {
   const { slug, categorySlug } = useParams();
