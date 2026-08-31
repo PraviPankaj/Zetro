@@ -5,8 +5,15 @@ const nextConfig = {
   },
   images: { unoptimized: true },
   async rewrites() {
-    const api = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-    return [{ source: "/media/:path*", destination: `${api}/media/:path*` }];
+    // Browser hits same origin; Next proxies API/media to local FastAPI (Docker / start-all).
+    const api = process.env.API_INTERNAL_URL || "http://127.0.0.1:8000";
+    return [
+      { source: "/api/:path*", destination: `${api}/api/:path*` },
+      { source: "/media/:path*", destination: `${api}/media/:path*` },
+      { source: "/health", destination: `${api}/health` },
+      { source: "/docs", destination: `${api}/docs` },
+      { source: "/openapi.json", destination: `${api}/openapi.json` },
+    ];
   },
 };
 

@@ -1,5 +1,5 @@
-# Render blueprint — deploy from GitHub: Dashboard → New → Blueprint → connect repo
-# Docs: https://render.com/docs/blueprint-spec
+# Render — ONE service (API + shop UI), like localhost
+# https://zetro.onrender.com/abc
 
 databases:
   - name: zetro-db
@@ -9,16 +9,13 @@ databases:
 
 services:
   - type: web
-    name: zetro-api
-    runtime: python
+    name: zetro
+    runtime: docker
     plan: free
-    # Paths from repo root (works even if Root Directory is not set in dashboard)
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: cd backend && PYTHONPATH=. uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /health
     envVars:
-      - key: PYTHON_VERSION
-        value: "3.11.9"
       - key: DATABASE_URL
         fromDatabase:
           name: zetro-db
@@ -46,22 +43,8 @@ services:
       - key: PLATFORM_DEFAULT_PASSWORD
         value: admin
       - key: CORS_ORIGINS
-        fromService:
-          type: web
-          name: zetro-web
-          envVarKey: RENDER_EXTERNAL_URL
-
-  - type: web
-    name: zetro-web
-    runtime: node
-    plan: free
-    buildCommand: cd apps/web && npm install && npm run build
-    startCommand: cd apps/web && npm start
-    envVars:
-      - key: NODE_VERSION
-        value: "20"
+        value: https://zetro.onrender.com
       - key: NEXT_PUBLIC_API_URL
-        fromService:
-          type: web
-          name: zetro-api
-          envVarKey: RENDER_EXTERNAL_URL
+        value: ""
+      - key: API_INTERNAL_URL
+        value: http://127.0.0.1:8000

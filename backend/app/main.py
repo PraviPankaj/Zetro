@@ -30,18 +30,7 @@ def create_app() -> FastAPI:
     @app.get("/")
     @app.head("/")
     def root():
-        frontend = (settings.frontend_url or "").rstrip("/")
-        if frontend:
-            from fastapi.responses import RedirectResponse
-
-            return RedirectResponse(url=f"{frontend}/abc", status_code=307)
-        return {
-            "status": "ok",
-            "app": settings.app_name,
-            "message": "Zetro API is running. Deploy the web app and set FRONTEND_URL to open the ABC shop.",
-            "health": "/health",
-            "demo_shop_api": "/api/v1/shops/abc/info",
-        }
+        return {"status": "ok", "app": settings.app_name}
 
     @app.get("/health")
     def health():
