@@ -21,6 +21,26 @@ Render is using **dashboard** build settings, not `render.yaml`. Either:
    - **Build Command:** `pip install -r backend/requirements.txt`
    - **Start Command:** `bash start-api.sh`
 
+## Deploy the web app (ABC shop UI)
+
+`https://zetro.onrender.com` is the **API**. The shop UI needs a second Web Service.
+
+1. Render → **New** → **Web Service** → same GitHub repo `PraviPankaj/Zetro`
+2. Settings:
+   - **Name:** `zetro-web`
+   - **Runtime:** Node
+   - **Build Command:** `npm run build`
+   - **Start Command:** `npm start`
+3. Environment:
+   - `NODE_VERSION` = `20`
+   - `NEXT_PUBLIC_API_URL` = `https://zetro.onrender.com`  *(your API URL)*
+4. Deploy, then open: `https://zetro-web.onrender.com` → redirects to **ABC Kids** (`/abc`)
+
+5. On **zetro-api** → Environment, add:
+   - `CORS_ORIGINS` = `https://zetro-web.onrender.com`
+   - `FRONTEND_URL` = `https://zetro-web.onrender.com`
+6. Redeploy the API once so CORS allows the web app.
+
 ## After deploy
 
 | What | URL |

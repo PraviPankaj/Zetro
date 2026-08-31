@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     media_root: str = "./uploads"
     media_url_prefix: str = "/media"
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://localhost:3002"
+    frontend_url: str = ""  # e.g. https://zetro-web.onrender.com — redirects / to /abc
 
     encryption_key: str = "zetro-dev-fernet-key-change-in-prod!!"  # 32+ chars padded for Fernet
 
