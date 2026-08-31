@@ -216,3 +216,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Node / Next
+node_modules/
+.next/
+apps/web/.env.local
+
+# Zetro local data
+zetro.db
+backend/zetro.db
+backend/uploads/
+backend/.venv/
+

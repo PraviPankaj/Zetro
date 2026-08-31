@@ -1,0 +1,68 @@
+# Render blueprint — deploy from GitHub: Dashboard → New → Blueprint → connect repo
+# Docs: https://render.com/docs/blueprint-spec
+
+databases:
+  - name: zetro-db
+    plan: free
+    databaseName: zetro
+    user: zetro
+
+services:
+  - type: web
+    name: zetro-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: PYTHONPATH=. uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: zetro-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ENCRYPTION_KEY
+        generateValue: true
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: "false"
+      - key: SMS_PROVIDER
+        value: console
+      - key: USE_MEMORY_OTP
+        value: "true"
+      - key: DEMO_BYPASS_ENABLED
+        value: "true"
+      - key: DEMO_SHOP_SLUG
+        value: abc
+      - key: DEMO_SHOP_PHONE
+        value: "9999999999"
+      - key: PLATFORM_DEFAULT_USERNAME
+        value: admin
+      - key: PLATFORM_DEFAULT_PASSWORD
+        value: admin
+      - key: CORS_ORIGINS
+        fromService:
+          type: web
+          name: zetro-web
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: zetro-web
+    runtime: node
+    rootDir: apps/web
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: zetro-api
+          envVarKey: RENDER_EXTERNAL_URL

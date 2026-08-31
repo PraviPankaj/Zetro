@@ -1,0 +1,9 @@
+{
+  "name": "zetro",
+  "private": true,
+  "scripts": {
+    "dev:api": "cd backend && .venv/bin/python -m uvicorn app.main:app --reload --port 8000",
+    "dev:web": "npm --prefix apps/web run dev",
+    "sync-openapi": "node packages/api-client/src/sync-openapi.mjs"
+  }
+}
