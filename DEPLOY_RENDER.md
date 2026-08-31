@@ -12,6 +12,15 @@ No SMS keys required for the first deploy. The **ABC Kids** demo shop is seeded 
    - **zetro-web** — Next.js frontend
 4. Click **Apply** and wait for both web services to go live (~5–10 min first time).
 
+## If build still says `requirements.txt` not found
+
+Render is using **dashboard** build settings, not `render.yaml`. Either:
+
+1. **Easiest:** push includes a root `requirements.txt` that points to `backend/requirements.txt` — redeploy after pull.
+2. **Or** in **zetro-api → Settings**, set:
+   - **Build Command:** `pip install -r backend/requirements.txt`
+   - **Start Command:** `bash start-api.sh`
+
 ## After deploy
 
 | What | URL |
