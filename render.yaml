@@ -1,5 +1,7 @@
-# Render — ONE service (API + shop UI), like localhost
-# https://zetro.onrender.com/abc
+# Render — native Python + Node (no Docker). For testing only.
+#
+# Shop UI:  https://zetro.onrender.com/abc
+# API:      https://zetro-api.onrender.com
 
 databases:
   - name: zetro-db
@@ -9,13 +11,15 @@ databases:
 
 services:
   - type: web
-    name: zetro
-    runtime: docker
+    name: zetro-api
+    runtime: python
     plan: free
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: bash start-api.sh
     healthCheckPath: /health
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
       - key: DATABASE_URL
         fromDatabase:
           name: zetro-db
@@ -43,8 +47,22 @@ services:
       - key: PLATFORM_DEFAULT_PASSWORD
         value: admin
       - key: CORS_ORIGINS
-        value: https://zetro.onrender.com
+        fromService:
+          type: web
+          name: zetro
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: zetro
+    runtime: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
       - key: NEXT_PUBLIC_API_URL
-        value: ""
-      - key: API_INTERNAL_URL
-        value: http://127.0.0.1:8000
+        fromService:
+          type: web
+          name: zetro-api
+          envVarKey: RENDER_EXTERNAL_URL
