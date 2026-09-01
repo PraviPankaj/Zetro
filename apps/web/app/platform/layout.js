@@ -5,11 +5,19 @@ import { usePathname, useRouter } from "next/navigation";
 import AdminShell from "../../components/admin/AdminShell";
 import { api, clearToken, getToken } from "../../lib/api";
 
-const items = [
-  { href: "/platform", label: "Overview", icon: "home" },
-  { href: "/platform/shops", label: "Shops", icon: "briefcase" },
-  { href: "/platform/reports", label: "Reports", icon: "file-text" },
-  { href: "/platform/users", label: "Users", icon: "users" },
+const sections = [
+  {
+    title: "General",
+    items: [{ href: "/platform", label: "Overview", icon: "home" }],
+  },
+  {
+    title: "Management",
+    items: [
+      { href: "/platform/shops", label: "Shops", icon: "briefcase" },
+      { href: "/platform/reports", label: "Reports", icon: "bar-chart-2" },
+      { href: "/platform/users", label: "Users", icon: "users" },
+    ],
+  },
 ];
 
 export default function PlatformLayout({ children }) {
@@ -38,10 +46,10 @@ export default function PlatformLayout({ children }) {
 
   return (
     <AdminShell
-      title="Platform"
-      brand="Zetro Platform"
+      title="Zetro Platform"
+      brand="Zetro"
       basePath="/platform"
-      items={items}
+      sections={sections}
       onLogout={() => clearToken("platform")}
     >
       {children}

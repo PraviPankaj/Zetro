@@ -1,24 +1,16 @@
 from __future__ import annotations
 
-from collections import defaultdict
-
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.api.deps import require_platform_permission
 from app.db.session import get_db
-from app.models import (
-    Order,
-    PaymentStatus,
-    PlatformUser,
-    Product,
-    ProductVariant,
-    Shop,
-)
+from app.models import PlatformUser, Shop
 from app.schemas import (
     CategoryCreate,
     CategoryOut,
+    CategoryUpdate,
     PlatformReportSummary,
     PlatformShopReport,
     ProductCreate,
@@ -28,6 +20,7 @@ from app.schemas import (
     ShopSettingsUpdate,
 )
 from app.services import catalog as catalog_service
+from app.services.reports import build_shop_dashboard, build_shop_summary
 
 router = APIRouter(prefix="/platform", tags=["platform-shop-ops"])
 
@@ -42,27 +35,7 @@ def _shop_or_404(db: Session, shop_id: int) -> Shop:
 
 
 def _build_summary(db: Session, shop: Shop) -> PlatformReportSummary:
-    products = db.scalars(select(Product).where(Product.shop_id == shop.id)).all()
-    variants = db.scalars(select(ProductVariant).where(ProductVariant.shop_id == shop.id)).all()
-    orders = db.scalars(select(Order).where(Order.shop_id == shop.id)).all()
-
-    total_stock = sum(v.stock or 0 for v in variants)
-    low_stock = sum(1 for v in variants if (v.stock or 0) <= LOW_STOCK_THRESHOLD)
-
-    return PlatformReportSummary(
-        shop_id=shop.id,
-        shop_name=shop.name,
-        shop_slug=shop.slug,
-        total_orders=len(orders),
-        total_revenue=float(sum(float(o.total) for o in orders)),
-        paid_revenue=float(
-            sum(float(o.total) for o in orders if o.payment_status == PaymentStatus.paid)
-        ),
-        products_count=len(products),
-        active_products=sum(1 for p in products if p.is_active),
-        total_stock_units=total_stock,
-        low_stock_count=low_stock,
-    )
+    return build_shop_summary(db, shop)
 
 
 @router.get("/themes")
@@ -89,76 +62,8 @@ def shop_report(
     db: Session = Depends(get_db),
 ):
     shop = _shop_or_404(db, shop_id)
-    summary = _build_summary(db, shop)
-
-    orders = db.scalars(
-        select(Order)
-        .options(joinedload(Order.items))
-        .where(Order.shop_id == shop.id)
-        .order_by(Order.id.desc())
-    ).unique().all()
-
-    orders_by_status: dict[str, int] = defaultdict(int)
-    payment_by_status: dict[str, int] = defaultdict(int)
-    for order in orders:
-        orders_by_status[order.status.value] += 1
-        payment_by_status[order.payment_status.value] += 1
-
-    product_sales: dict[str, dict] = defaultdict(lambda: {"quantity": 0, "revenue": 0.0})
-    for order in orders:
-        for item in order.items:
-            key = item.product_name
-            product_sales[key]["quantity"] += item.quantity
-            product_sales[key]["revenue"] += float(item.line_total)
-
-    top_products = sorted(
-        [{"product_name": name, **stats} for name, stats in product_sales.items()],
-        key=lambda row: row["revenue"],
-        reverse=True,
-    )[:8]
-
-    variants = db.scalars(
-        select(ProductVariant)
-        .options(joinedload(ProductVariant.product))
-        .where(ProductVariant.shop_id == shop.id)
-        .order_by(ProductVariant.stock.asc())
-    ).unique().all()
-
-    low_stock = [
-        {
-            "product_id": v.product_id,
-            "product_name": v.product.name if v.product else "",
-            "variant_name": v.name,
-            "sku": v.sku,
-            "stock": v.stock,
-            "price": float(v.price),
-        }
-        for v in variants
-        if (v.stock or 0) <= LOW_STOCK_THRESHOLD
-    ][:20]
-
-    recent_orders = [
-        {
-            "id": o.id,
-            "order_number": o.order_number,
-            "status": o.status.value,
-            "payment_status": o.payment_status.value,
-            "total": float(o.total),
-            "created_at": o.created_at,
-            "items_count": len(o.items),
-        }
-        for o in orders[:10]
-    ]
-
-    return PlatformShopReport(
-        shop=ShopOut.model_validate(shop),
-        summary=summary,
-        orders_by_status=dict(orders_by_status),
-        payment_by_status=dict(payment_by_status),
-        top_products=top_products,
-        low_stock=low_stock,
-        recent_orders=recent_orders,
-    )
+    dashboard = build_shop_dashboard(db, shop)
+    return PlatformShopReport(shop=ShopOut.model_validate(shop), **dashboard)
 
 
 @router.get("/shops/{shop_id}/categories", response_model=list[CategoryOut])
@@ -180,6 +85,30 @@ def create_shop_category(
 ):
     shop = _shop_or_404(db, shop_id)
     return catalog_service.create_category(db, shop, body)
+
+
+@router.patch("/shops/{shop_id}/categories/{category_id}", response_model=CategoryOut)
+def update_shop_category(
+    shop_id: int,
+    category_id: int,
+    body: CategoryUpdate,
+    _: PlatformUser = Depends(require_platform_permission("shops.manage")),
+    db: Session = Depends(get_db),
+):
+    shop = _shop_or_404(db, shop_id)
+    return catalog_service.update_category(db, shop, category_id, body)
+
+
+@router.delete("/shops/{shop_id}/categories/{category_id}")
+def delete_shop_category(
+    shop_id: int,
+    category_id: int,
+    _: PlatformUser = Depends(require_platform_permission("shops.manage")),
+    db: Session = Depends(get_db),
+):
+    shop = _shop_or_404(db, shop_id)
+    catalog_service.delete_category(db, shop, category_id)
+    return {"message": "deleted"}
 
 
 @router.get("/shops/{shop_id}/products", response_model=list[ProductOut])
@@ -259,7 +188,21 @@ def update_shop_settings(
     db: Session = Depends(get_db),
 ):
     shop = _shop_or_404(db, shop_id)
-    shop.storefront_theme = catalog_service.normalize_theme(body.storefront_theme)
+    data = body.model_dump(exclude_unset=True)
+    if "storefront_theme" in data and data["storefront_theme"]:
+        shop.storefront_theme = catalog_service.normalize_theme(data["storefront_theme"])
+    if "name" in data and data["name"]:
+        shop.name = data["name"]
+    if "description" in data:
+        shop.description = data["description"]
+    if "owner_phone" in data and data["owner_phone"]:
+        shop.owner_phone = data["owner_phone"]
     db.commit()
     db.refresh(shop)
-    return {"message": "updated", "storefront_theme": shop.storefront_theme}
+    return {
+        "message": "updated",
+        "name": shop.name,
+        "description": shop.description,
+        "owner_phone": shop.owner_phone,
+        "storefront_theme": shop.storefront_theme,
+    }

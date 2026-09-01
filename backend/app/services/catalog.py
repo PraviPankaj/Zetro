@@ -19,7 +19,7 @@ from app.models import (
     Shop,
     product_categories,
 )
-from app.schemas import CategoryBrief, CategoryCreate, ProductCreate, ProductOut, ProductUpdate
+from app.schemas import CategoryBrief, CategoryCreate, CategoryUpdate, ProductCreate, ProductOut, ProductUpdate
 from app.services.categories import assign_product_categories, category_descendant_ids
 
 STOREFRONT_THEMES = ("playful", "classic", "fresh", "minimal")
@@ -97,6 +97,61 @@ def create_category(db: Session, shop: Shop, body: CategoryCreate) -> Category:
     db.commit()
     db.refresh(cat)
     return cat
+
+
+def update_category(db: Session, shop: Shop, category_id: int, body: CategoryUpdate) -> Category:
+    cat = db.scalar(
+        select(Category).where(Category.id == category_id, Category.shop_id == shop.id)
+    )
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    data = body.model_dump(exclude_unset=True)
+    if "parent_id" in data and data["parent_id"] is not None:
+        if data["parent_id"] == category_id:
+            raise HTTPException(status_code=400, detail="Category cannot be its own parent")
+        parent = db.scalar(
+            select(Category).where(Category.id == data["parent_id"], Category.shop_id == shop.id)
+        )
+        if not parent:
+            raise HTTPException(status_code=400, detail="Parent category not found")
+
+    for field in ("name", "slug", "parent_id", "is_active"):
+        if field in data:
+            setattr(cat, field, data[field])
+
+    db.commit()
+    db.refresh(cat)
+    return cat
+
+
+def delete_category(db: Session, shop: Shop, category_id: int) -> None:
+    cat = db.scalar(
+        select(Category).where(Category.id == category_id, Category.shop_id == shop.id)
+    )
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    children = db.scalar(
+        select(Category.id).where(Category.parent_id == category_id, Category.shop_id == shop.id).limit(1)
+    )
+    if children:
+        raise HTTPException(status_code=400, detail="Remove child categories first")
+
+    linked = db.scalar(
+        select(product_categories.c.product_id)
+        .where(product_categories.c.category_id == category_id)
+        .limit(1)
+    )
+    if linked:
+        raise HTTPException(status_code=400, detail="Category is assigned to products — remove assignments first")
+
+    direct = db.scalar(select(Product.id).where(Product.category_id == category_id).limit(1))
+    if direct:
+        raise HTTPException(status_code=400, detail="Category is assigned to products — remove assignments first")
+
+    db.delete(cat)
+    db.commit()
 
 
 def create_product(db: Session, shop: Shop, body: ProductCreate) -> ProductOut:

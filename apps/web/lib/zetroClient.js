@@ -110,6 +110,14 @@ export function createClient({
         categories: (id, token) => request(`/platform/shops/${id}/categories`, { token }),
         createCategory: (id, payload, token) =>
           request(`/platform/shops/${id}/categories`, { method: "POST", body: payload, token }),
+        updateCategory: (id, categoryId, payload, token) =>
+          request(`/platform/shops/${id}/categories/${categoryId}`, {
+            method: "PATCH",
+            body: payload,
+            token,
+          }),
+        deleteCategory: (id, categoryId, token) =>
+          request(`/platform/shops/${id}/categories/${categoryId}`, { method: "DELETE", token }),
         updateSettings: (id, payload, token) =>
           request(`/platform/shops/${id}/settings`, { method: "PATCH", body: payload, token }),
         reports: (id, token) => request(`/platform/shops/${id}/reports`, { token }),
@@ -176,6 +184,16 @@ export function createClient({
         list: (token) => request(`/shops/${slug}/admin/categories`, { token }),
         create: (payload, token) =>
           request(`/shops/${slug}/admin/categories`, { method: "POST", body: payload, token }),
+        update: (id, payload, token) =>
+          request(`/shops/${slug}/admin/categories/${id}`, { method: "PATCH", body: payload, token }),
+        delete: (id, token) =>
+          request(`/shops/${slug}/admin/categories/${id}`, { method: "DELETE", token }),
+      },
+      dashboard: (token) => request(`/shops/${slug}/admin/dashboard`, { token }),
+      uploadLogo: async (file, token) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        return request(`/shops/${slug}/admin/logo`, { method: "POST", formData, token });
       },
       products: {
         list: (token) => request(`/shops/${slug}/admin/products`, { token }),

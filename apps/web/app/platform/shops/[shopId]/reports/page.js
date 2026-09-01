@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { Card, Col, Row, Table } from "react-bootstrap";
+import BarChart from "../../../../../components/admin/BarChart";
+import KpiCard from "../../../../../components/admin/KpiCard";
+import StatusBadge from "../../../../../components/admin/StatusBadge";
 import { api, getToken } from "../../../../../lib/api";
 
 function money(value) {
@@ -26,7 +29,7 @@ export default function PlatformShopReportsPage() {
 
   return (
     <>
-      <div className="d-flex justify-content-between align-items-center mb-4">
+      <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <div>
           <h2 className="mb-1">{shop.name} — Reports</h2>
           <p className="text-muted mb-0">Sales and inventory snapshot</p>
@@ -41,37 +44,41 @@ export default function PlatformShopReportsPage() {
         </div>
       </div>
 
-      <Row className="mb-4 g-3">
-        <Col md={3}>
-          <Card>
+      <Row className="g-3 mb-4">
+        <Col sm={6} lg={3}>
+          <KpiCard label="Total orders" value={summary.total_orders} variant="info" icon="📦" />
+        </Col>
+        <Col sm={6} lg={3}>
+          <KpiCard label="Total revenue" value={money(summary.total_revenue)} variant="success" icon="₹" />
+        </Col>
+        <Col sm={6} lg={3}>
+          <KpiCard label="Paid revenue" value={money(summary.paid_revenue)} variant="success" icon="✓" />
+        </Col>
+        <Col sm={6} lg={3}>
+          <KpiCard
+            label="Stock units"
+            value={summary.total_stock_units}
+            sub={`${summary.low_stock_count} low stock`}
+            variant={summary.low_stock_count > 0 ? "warning" : "default"}
+            icon="📊"
+          />
+        </Col>
+      </Row>
+
+      <Row className="g-4 mb-4">
+        <Col lg={6}>
+          <Card className="h-100 admin-table-card">
+            <Card.Header>Orders by status</Card.Header>
             <Card.Body>
-              <div className="text-muted">Total orders</div>
-              <h3>{summary.total_orders}</h3>
+              <BarChart data={orders_by_status} />
             </Card.Body>
           </Card>
         </Col>
-        <Col md={3}>
-          <Card>
+        <Col lg={6}>
+          <Card className="h-100 admin-table-card">
+            <Card.Header>Payments</Card.Header>
             <Card.Body>
-              <div className="text-muted">Total revenue</div>
-              <h3>{money(summary.total_revenue)}</h3>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card>
-            <Card.Body>
-              <div className="text-muted">Paid revenue</div>
-              <h3>{money(summary.paid_revenue)}</h3>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card>
-            <Card.Body>
-              <div className="text-muted">Stock units</div>
-              <h3>{summary.total_stock_units}</h3>
-              <small className="text-danger">{summary.low_stock_count} low stock</small>
+              <BarChart data={payment_by_status} />
             </Card.Body>
           </Card>
         </Col>
@@ -79,37 +86,7 @@ export default function PlatformShopReportsPage() {
 
       <Row className="g-4">
         <Col lg={6}>
-          <Card className="h-100">
-            <Card.Header>Orders by status</Card.Header>
-            <Table responsive className="mb-0">
-              <tbody>
-                {Object.entries(orders_by_status).map(([status, count]) => (
-                  <tr key={status}>
-                    <td className="text-capitalize">{status}</td>
-                    <td className="text-end">{count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </Card>
-        </Col>
-        <Col lg={6}>
-          <Card className="h-100">
-            <Card.Header>Payments</Card.Header>
-            <Table responsive className="mb-0">
-              <tbody>
-                {Object.entries(payment_by_status).map(([status, count]) => (
-                  <tr key={status}>
-                    <td className="text-capitalize">{status}</td>
-                    <td className="text-end">{count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </Card>
-        </Col>
-        <Col lg={6}>
-          <Card>
+          <Card className="admin-table-card">
             <Card.Header>Top selling products</Card.Header>
             <Table responsive className="mb-0 text-nowrap">
               <thead>
@@ -140,7 +117,7 @@ export default function PlatformShopReportsPage() {
           </Card>
         </Col>
         <Col lg={6}>
-          <Card>
+          <Card className="admin-table-card">
             <Card.Header>Low stock (≤ 5 units)</Card.Header>
             <Table responsive className="mb-0 text-nowrap">
               <thead>
@@ -157,7 +134,7 @@ export default function PlatformShopReportsPage() {
                     <tr key={`${row.product_id}-${row.sku}`}>
                       <td>{row.product_name}</td>
                       <td>{row.sku}</td>
-                      <td>{row.stock}</td>
+                      <td className="text-danger fw-semibold">{row.stock}</td>
                       <td>{money(row.price)}</td>
                     </tr>
                   ))
@@ -173,7 +150,7 @@ export default function PlatformShopReportsPage() {
           </Card>
         </Col>
         <Col lg={12}>
-          <Card>
+          <Card className="admin-table-card">
             <Card.Header>Recent orders</Card.Header>
             <Table responsive className="mb-0 text-nowrap">
               <thead>
@@ -191,8 +168,12 @@ export default function PlatformShopReportsPage() {
                   recent_orders.map((o) => (
                     <tr key={o.id}>
                       <td>{o.order_number}</td>
-                      <td className="text-capitalize">{o.status}</td>
-                      <td className="text-capitalize">{o.payment_status}</td>
+                      <td>
+                        <StatusBadge status={o.status} />
+                      </td>
+                      <td>
+                        <StatusBadge status={o.payment_status} />
+                      </td>
                       <td>{o.items_count}</td>
                       <td>{money(o.total)}</td>
                       <td>{o.created_at ? new Date(o.created_at).toLocaleString() : "—"}</td>

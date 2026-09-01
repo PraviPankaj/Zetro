@@ -13,13 +13,17 @@ from app.models import Order, OrderStatus, Product, ShopSubscription, Subscripti
 from app.schemas import (
     CategoryCreate,
     CategoryOut,
+    CategoryUpdate,
     OrderOut,
     ProductCreate,
     ProductOut,
     ProductUpdate,
+    ShopDashboard,
     ShopSettingsUpdate,
 )
 from app.services import catalog as catalog_service
+from app.services.reports import build_shop_dashboard
+from app.services.shop_registration import save_shop_logo
 
 router = APIRouter(prefix="/shops/{slug}", tags=["shop-admin-catalog"])
 
@@ -62,6 +66,36 @@ def create_category(
     shop, _ = ctx
     _require_active_subscription(db, shop.id)
     return catalog_service.create_category(db, shop, body)
+
+
+@router.patch("/admin/categories/{category_id}", response_model=CategoryOut)
+def update_category(
+    slug: str,
+    category_id: int,
+    body: CategoryUpdate,
+    db: Session = Depends(get_db),
+    ctx=Depends(require_shop_user),
+):
+    shop, _ = ctx
+    return catalog_service.update_category(db, shop, category_id, body)
+
+
+@router.delete("/admin/categories/{category_id}")
+def delete_category(
+    slug: str,
+    category_id: int,
+    db: Session = Depends(get_db),
+    ctx=Depends(require_shop_user),
+):
+    shop, _ = ctx
+    catalog_service.delete_category(db, shop, category_id)
+    return {"message": "deleted"}
+
+
+@router.get("/admin/dashboard", response_model=ShopDashboard)
+def shop_dashboard(slug: str, db: Session = Depends(get_db), ctx=Depends(require_shop_user)):
+    shop, _ = ctx
+    return build_shop_dashboard(db, shop)
 
 
 @router.get("/admin/products", response_model=list[ProductOut])
@@ -137,13 +171,39 @@ def update_shop_settings(
     ctx=Depends(require_shop_user),
 ):
     shop, _ = ctx
-    shop.storefront_theme = catalog_service.normalize_theme(body.storefront_theme)
+    data = body.model_dump(exclude_unset=True)
+    if "storefront_theme" in data and data["storefront_theme"]:
+        shop.storefront_theme = catalog_service.normalize_theme(data["storefront_theme"])
+    if "name" in data and data["name"]:
+        shop.name = data["name"]
+    if "description" in data:
+        shop.description = data["description"]
+    if "owner_phone" in data and data["owner_phone"]:
+        shop.owner_phone = data["owner_phone"]
     db.commit()
     db.refresh(shop)
     return {
         "message": "updated",
+        "name": shop.name,
+        "description": shop.description,
+        "owner_phone": shop.owner_phone,
+        "logo_url": shop.logo_url,
         "storefront_theme": shop.storefront_theme,
     }
+
+
+@router.post("/admin/logo")
+async def upload_shop_logo(
+    slug: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    ctx=Depends(require_shop_user),
+):
+    shop, _ = ctx
+    shop.logo_url = await save_shop_logo(shop, file)
+    db.commit()
+    db.refresh(shop)
+    return {"message": "updated", "logo_url": shop.logo_url}
 
 
 @router.get("/admin/orders", response_model=list[OrderOut])
@@ -256,6 +316,7 @@ def shop_info(slug: str, db: Session = Depends(get_db)):
         "name": shop.name,
         "slug": shop.slug,
         "description": shop.description,
+        "owner_phone": shop.owner_phone,
         "logo_url": shop.logo_url,
         "status": shop.status.value,
         "storefront_theme": catalog_service.normalize_theme(shop.storefront_theme),

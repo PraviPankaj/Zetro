@@ -13,13 +13,33 @@ export default function ShopAdminLayout({ children }) {
   const [shopName, setShopName] = useState(slug);
 
   const base = `/${slug}/admin`;
-  const items = [
-    { href: base, label: "Overview", icon: "home" },
-    { href: `${base}/plans`, label: "Plans", icon: "package" },
-    { href: `${base}/products`, label: "Stock", icon: "shopping-bag" },
-    { href: `${base}/settings`, label: "Theme", icon: "layout" },
-    { href: `${base}/orders`, label: "Orders", icon: "file-text" },
-    { href: `${base}/payments`, label: "Payments", icon: "credit-card" },
+  const sections = [
+    {
+      title: "General",
+      items: [{ href: base, label: "Dashboard", icon: "home" }],
+    },
+    {
+      title: "Product Management",
+      items: [
+        { href: `${base}/products`, label: "Products", icon: "shopping-bag" },
+        { href: `${base}/categories`, label: "Categories", icon: "folder" },
+      ],
+    },
+    {
+      title: "Order Management",
+      items: [{ href: `${base}/orders`, label: "Orders", icon: "file-text" }],
+    },
+    {
+      title: "Store",
+      items: [
+        { href: `${base}/settings`, label: "Settings", icon: "settings" },
+        { href: `${base}/payments`, label: "Payments", icon: "credit-card" },
+      ],
+    },
+    {
+      title: "Account",
+      items: [{ href: `${base}/plans`, label: "Plans", icon: "package" }],
+    },
   ];
 
   useEffect(() => {
@@ -50,7 +70,7 @@ export default function ShopAdminLayout({ children }) {
       title={shopName}
       brand={shopName}
       basePath={base}
-      items={items}
+      sections={sections}
       onLogout={() => clearToken("shop", slug)}
     >
       {children}
