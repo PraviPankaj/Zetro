@@ -116,6 +116,19 @@ async def upload_product_image(
     return await catalog_service.upload_product_image(db, shop, product_id, file)
 
 
+@router.delete("/admin/products/{product_id}/images/{image_id}", response_model=ProductOut)
+def delete_product_image(
+    slug: str,
+    product_id: int,
+    image_id: int,
+    db: Session = Depends(get_db),
+    ctx=Depends(require_shop_user),
+):
+    shop, _ = ctx
+    _require_active_subscription(db, shop.id)
+    return catalog_service.delete_product_image(db, shop, product_id, image_id)
+
+
 @router.patch("/admin/settings")
 def update_shop_settings(
     slug: str,

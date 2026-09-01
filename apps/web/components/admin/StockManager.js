@@ -167,6 +167,21 @@ export default function StockManager({
     }
   }
 
+  async function onDeleteImage(productId, imageId) {
+    if (!window.confirm("Remove this image?")) return;
+    setError("");
+    try {
+      const updated = await catalogApi.deleteImage(productId, imageId);
+      if (editing?.id === productId) {
+        setEditing(updated);
+      }
+      setMessage("Image removed");
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function onDelete(product) {
     if (
       !window.confirm(
@@ -501,17 +516,32 @@ export default function StockManager({
               <Form.Control type="file" accept="image/*" onChange={(e) => setEditFile(e.target.files?.[0])} />
             </Form.Group>
             {editing?.images?.length ? (
-              <div className="d-flex gap-2 mt-3 flex-wrap">
-                {editing.images.map((im) => (
-                  <img
-                    key={im.id}
-                    src={im.url}
-                    alt=""
-                    width={64}
-                    height={64}
-                    style={{ objectFit: "cover", borderRadius: 6 }}
-                  />
-                ))}
+              <div className="mt-3">
+                <Form.Label className="mb-2">Images</Form.Label>
+                <div className="d-flex gap-2 flex-wrap">
+                  {editing.images.map((im) => (
+                    <div key={im.id} className="position-relative">
+                      <img
+                        src={im.url}
+                        alt=""
+                        width={72}
+                        height={72}
+                        style={{ objectFit: "cover", borderRadius: 6 }}
+                      />
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="sm"
+                        className="position-absolute top-0 end-0 translate-middle rounded-circle p-0"
+                        style={{ width: 22, height: 22, fontSize: 14, lineHeight: 1 }}
+                        title="Remove image"
+                        onClick={() => onDeleteImage(editing.id, im.id)}
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : null}
           </Modal.Body>

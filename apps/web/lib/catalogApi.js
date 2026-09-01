@@ -10,6 +10,8 @@ export function createShopCatalogApi(slug) {
     updateProduct: (id, payload) => api.shop(slug).products.update(id, payload, token()),
     deleteProduct: (id) => api.shop(slug).products.delete(id, token()),
     uploadImage: (id, file) => api.shop(slug).products.uploadImage(id, file, token()),
+    deleteImage: (productId, imageId) =>
+      api.shop(slug).products.deleteImage(productId, imageId, token()),
     listCategories: () => api.shop(slug).categories.list(token()),
     createCategory: (payload) => api.shop(slug).categories.create(payload, token()),
     updateSettings: (payload) => api.shop(slug).settings.update(payload, token()),
@@ -28,6 +30,8 @@ export function createPlatformCatalogApi(shopId) {
     deleteProduct: (productId) => api.platform.shops.deleteProduct(id, productId, token()),
     uploadImage: (productId, file) =>
       api.platform.shops.uploadImage(id, productId, file, token()),
+    deleteImage: (productId, imageId) =>
+      api.platform.shops.deleteImage(id, productId, imageId, token()),
     listCategories: () => api.platform.shops.categories(id, token()),
     createCategory: (payload) => api.platform.shops.createCategory(id, payload, token()),
     updateSettings: (payload) => api.platform.shops.updateSettings(id, payload, token()),

@@ -102,6 +102,11 @@ export function createClient({
             token,
           });
         },
+        deleteImage: (id, productId, imageId, token) =>
+          request(`/platform/shops/${id}/products/${productId}/images/${imageId}`, {
+            method: "DELETE",
+            token,
+          }),
         categories: (id, token) => request(`/platform/shops/${id}/categories`, { token }),
         createCategory: (id, payload, token) =>
           request(`/platform/shops/${id}/categories`, { method: "POST", body: payload, token }),
@@ -189,6 +194,11 @@ export function createClient({
             token,
           });
         },
+        deleteImage: (productId, imageId, token) =>
+          request(`/shops/${slug}/admin/products/${productId}/images/${imageId}`, {
+            method: "DELETE",
+            token,
+          }),
       },
       orders: {
         list: (token) => request(`/shops/${slug}/admin/orders`, { token }),

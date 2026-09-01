@@ -239,6 +239,30 @@ async def upload_product_image(
     return serialize_product(get_product(db, shop.id, product_id))
 
 
+def delete_product_image(db: Session, shop: Shop, product_id: int, image_id: int) -> ProductOut:
+    image = db.scalar(
+        select(ProductImage).where(
+            ProductImage.id == image_id,
+            ProductImage.product_id == product_id,
+            ProductImage.shop_id == shop.id,
+        )
+    )
+    if not image:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    settings = get_settings()
+    prefix = settings.media_url_prefix.rstrip("/")
+    if image.url.startswith(prefix + "/"):
+        rel = image.url[len(prefix) + 1 :]
+        file_path = Path(settings.media_root) / rel
+        if file_path.is_file():
+            file_path.unlink()
+
+    db.delete(image)
+    db.commit()
+    return serialize_product(get_product(db, shop.id, product_id))
+
+
 def filter_products_by_category(db: Session, shop_id: int, category_slug: str | None):
     qry = product_query(db, shop_id).where(Product.is_active.is_(True))
     if category_slug:
