@@ -139,6 +139,9 @@ export default function StockManager({
   const [editForm, setEditForm] = useState(emptyForm);
   const [editFiles, setEditFiles] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [themeSaving, setThemeSaving] = useState(false);
 
   function load() {
@@ -305,6 +308,23 @@ export default function StockManager({
     }
   }
 
+  const filteredProducts = products.filter((p) => {
+    if (categoryFilter) {
+      const catIds = (p.categories || []).map((c) => String(c.id));
+      if (!catIds.includes(categoryFilter)) return false;
+    }
+    if (statusFilter === "active" && !p.is_active) return false;
+    if (statusFilter === "inactive" && p.is_active) return false;
+    if (!search.trim()) return true;
+    const needle = search.toLowerCase();
+    return (
+      p.name?.toLowerCase().includes(needle) ||
+      p.slug?.toLowerCase().includes(needle) ||
+      p.variants?.[0]?.sku?.toLowerCase().includes(needle) ||
+      (p.categories || []).some((c) => c.name.toLowerCase().includes(needle))
+    );
+  });
+
   return (
     <>
       <div className="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
@@ -351,6 +371,46 @@ export default function StockManager({
         <Alert variant="danger">{error}</Alert>
       ) : null}
 
+      <Card className="mb-3">
+        <Card.Body className="py-3">
+          <div className="d-flex flex-wrap gap-2 align-items-center">
+            <Form.Control
+              size="sm"
+              placeholder="Search products…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ maxWidth: 240 }}
+            />
+            <Form.Select
+              size="sm"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              style={{ maxWidth: 180 }}
+            >
+              <option value="">All categories</option>
+              {categories.map((c) => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.parent_id ? `↳ ${c.name}` : c.name}
+                </option>
+              ))}
+            </Form.Select>
+            <Form.Select
+              size="sm"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={{ maxWidth: 140 }}
+            >
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </Form.Select>
+            <span className="text-muted small ms-auto">
+              {filteredProducts.length} of {products.length} products
+            </span>
+          </div>
+        </Card.Body>
+      </Card>
+
       <Card>
         <Table responsive className="mb-0 align-middle">
           <thead>
@@ -364,14 +424,16 @@ export default function StockManager({
             </tr>
           </thead>
           <tbody>
-            {products.length === 0 ? (
+            {filteredProducts.length === 0 ? (
               <tr>
                 <td colSpan={6} className="text-muted text-center py-4">
-                  No products yet. Click <strong>Add product</strong> to get started.
+                  {products.length === 0
+                    ? <>No products yet. Click <strong>Add product</strong> to get started.</>
+                    : "No products match your filters."}
                 </td>
               </tr>
             ) : (
-              products.map((p) => (
+              filteredProducts.map((p) => (
                 <tr key={p.id}>
                   <td style={{ minWidth: 180 }}>
                     <div className="d-flex align-items-center gap-2">

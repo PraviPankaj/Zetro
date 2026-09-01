@@ -74,7 +74,10 @@ class ShopUpdate(BaseModel):
 
 
 class ShopSettingsUpdate(BaseModel):
-    storefront_theme: str
+    storefront_theme: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    owner_phone: Optional[str] = None
 
 
 class ShopOut(BaseModel):
@@ -148,6 +151,13 @@ class CategoryCreate(BaseModel):
     name: str
     slug: str
     parent_id: Optional[int] = None
+
+
+class CategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    slug: Optional[str] = None
+    parent_id: Optional[int] = None
+    is_active: Optional[bool] = None
 
 
 class CategoryOut(BaseModel):
@@ -333,6 +343,15 @@ class PlatformReportSummary(BaseModel):
 
 class PlatformShopReport(BaseModel):
     shop: ShopOut
+    summary: PlatformReportSummary
+    orders_by_status: dict[str, int]
+    payment_by_status: dict[str, int]
+    top_products: list[dict[str, Any]] = []
+    low_stock: list[dict[str, Any]] = []
+    recent_orders: list[dict[str, Any]] = []
+
+
+class ShopDashboard(BaseModel):
     summary: PlatformReportSummary
     orders_by_status: dict[str, int]
     payment_by_status: dict[str, int]

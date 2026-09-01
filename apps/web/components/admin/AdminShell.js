@@ -6,7 +6,22 @@ import { useState } from "react";
 import { Menu } from "react-feather";
 import { clearToken } from "../../lib/api";
 
-export default function AdminShell({ title, basePath, items, onLogout, children, brand = "Zetro" }) {
+function NavItem({ item, pathname, basePath }) {
+  const isBase = item.href === basePath;
+  const active = isBase
+    ? pathname === item.href
+    : pathname === item.href || pathname.startsWith(item.href + "/");
+  return (
+    <li className="nav-item">
+      <Link href={item.href} className={`nav-link ${active ? "active" : ""}`}>
+        {item.icon ? <i className={`nav-icon fe fe-${item.icon} me-2`} /> : null}
+        {item.label}
+      </Link>
+    </li>
+  );
+}
+
+export default function AdminShell({ title, basePath, items, sections, onLogout, children, brand = "Zetro" }) {
   const [showMenu, setShowMenu] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
@@ -25,17 +40,18 @@ export default function AdminShell({ title, basePath, items, onLogout, children,
             <span>{brand}</span>
           </Link>
           <ul className="navbar-nav flex-column">
-            {items.map((item) => (
-              <li className="nav-item" key={item.href}>
-                <Link
-                  href={item.href}
-                  className={`nav-link ${pathname === item.href ? "active" : ""}`}
-                >
-                  {item.icon ? <i className={`nav-icon fe fe-${item.icon} me-2`} /> : null}
-                  {item.label}
-                </Link>
-              </li>
-            ))}
+            {sections
+              ? sections.map((section) => (
+                  <li key={section.title || section.label} className="nav-section">
+                    {section.title ? <span className="nav-section-title">{section.title}</span> : null}
+                    <ul className="navbar-nav flex-column">
+                      {section.items.map((item) => (
+                        <NavItem key={item.href} item={item} pathname={pathname} basePath={basePath} />
+                      ))}
+                    </ul>
+                  </li>
+                ))
+              : items.map((item) => <NavItem key={item.href} item={item} pathname={pathname} basePath={basePath} />)}
           </ul>
         </div>
       </div>
