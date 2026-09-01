@@ -14,6 +14,7 @@ const sections = [
     title: "Management",
     items: [
       { href: "/platform/shops", label: "Shops", icon: "briefcase" },
+      { href: "/platform/themes", label: "Themes", icon: "layout" },
       { href: "/platform/reports", label: "Reports", icon: "bar-chart-2" },
       { href: "/platform/users", label: "Users", icon: "users" },
     ],

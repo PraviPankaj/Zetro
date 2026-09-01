@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import Carousel from "../../components/store/Carousel";
 import CategoryNav from "../../components/store/CategoryNav";
+import CustomThemeHome from "../../components/store/CustomThemeHome";
 import { api } from "../../lib/api";
 import { filterProducts, money } from "../../lib/storefront";
 
@@ -55,6 +56,19 @@ function ShopHomeContent() {
   );
 
   const heroSlides = useMemo(() => {
+    const cmsSlides = (shop?.homepage_blocks || [])
+      .filter((b) => b.image_url || b.title)
+      .map((b, i) => ({
+        id: b.id || `cms-${i}`,
+        image: b.image_url,
+        eyebrow: shop?.name || "Shop",
+        title: b.title || shop?.name,
+        subtitle: b.subtitle || shop?.description,
+        cta: b.cta || "Shop now",
+        href: b.href || `/${slug}#catalog`,
+      }));
+    if (cmsSlides.length) return cmsSlides;
+
     const withImages = products.filter((p) => p.images?.[0]?.url).slice(0, 4);
     if (!withImages.length) {
       return HERO_FALLBACKS.map((s, i) => ({
@@ -94,6 +108,10 @@ function ShopHomeContent() {
       })),
     [products, slug]
   );
+
+  if (shop?.custom_theme_active) {
+    return <CustomThemeHome />;
+  }
 
   return (
     <>

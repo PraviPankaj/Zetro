@@ -190,13 +190,19 @@ def update_shop_settings(
     shop = _shop_or_404(db, shop_id)
     data = body.model_dump(exclude_unset=True)
     if "storefront_theme" in data and data["storefront_theme"]:
-        shop.storefront_theme = catalog_service.normalize_theme(data["storefront_theme"])
+        shop.storefront_theme = catalog_service.normalize_theme(data["storefront_theme"], db)
     if "name" in data and data["name"]:
         shop.name = data["name"]
     if "description" in data:
         shop.description = data["description"]
     if "owner_phone" in data and data["owner_phone"]:
         shop.owner_phone = data["owner_phone"]
+    if "meta_title" in data:
+        shop.meta_title = data["meta_title"]
+    if "meta_description" in data:
+        shop.meta_description = data["meta_description"]
+    if "homepage_blocks" in data and data["homepage_blocks"] is not None:
+        shop.homepage_blocks = data["homepage_blocks"]
     db.commit()
     db.refresh(shop)
     return {
@@ -205,4 +211,7 @@ def update_shop_settings(
         "description": shop.description,
         "owner_phone": shop.owner_phone,
         "storefront_theme": shop.storefront_theme,
+        "meta_title": shop.meta_title,
+        "meta_description": shop.meta_description,
+        "homepage_blocks": shop.homepage_blocks or [],
     }

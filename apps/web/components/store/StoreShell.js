@@ -89,6 +89,18 @@ export default function StoreShell({ slug, children }) {
     api.shop(slug).info().then(setShop).catch(() => setShop(null));
   }, [slug]);
 
+  useEffect(() => {
+    if (!shop) return;
+    document.title = shop.meta_title || shop.name || slug;
+    let meta = document.querySelector('meta[name="description"]');
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = "description";
+      document.head.appendChild(meta);
+    }
+    meta.content = shop.meta_description || shop.description || "";
+  }, [shop, slug]);
+
   const theme = shop?.storefront_theme || "playful";
 
   return (

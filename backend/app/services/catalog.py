@@ -22,7 +22,8 @@ from app.models import (
 from app.schemas import CategoryBrief, CategoryCreate, CategoryUpdate, ProductCreate, ProductOut, ProductUpdate
 from app.services.categories import assign_product_categories, category_descendant_ids
 
-STOREFRONT_THEMES = ("playful", "classic", "fresh", "minimal")
+PRESET_THEMES = ("playful", "classic", "fresh", "minimal")
+STOREFRONT_THEMES = PRESET_THEMES  # backward compat for imports
 
 
 def resolve_category_ids(
@@ -335,7 +336,12 @@ def filter_products_by_category(db: Session, shop_id: int, category_slug: str | 
     return db.scalars(qry).unique().all()
 
 
-def normalize_theme(theme: str | None) -> str:
-    if theme and theme in STOREFRONT_THEMES:
+def normalize_theme(theme: str | None, db=None) -> str:
+    if theme and theme in PRESET_THEMES:
         return theme
-    return STOREFRONT_THEMES[0]
+    if db and theme:
+        from app.services.theme_renderer import get_active_html_theme
+
+        if get_active_html_theme(db, theme):
+            return theme
+    return PRESET_THEMES[0]

@@ -125,6 +125,7 @@ export default function StockManager({
   showThemePicker = false,
   currentTheme,
   onThemeChange,
+  initialStatusFilter = "",
 }) {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -141,7 +142,7 @@ export default function StockManager({
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter);
   const [themeSaving, setThemeSaving] = useState(false);
 
   function load() {

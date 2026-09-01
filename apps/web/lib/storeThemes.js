@@ -26,8 +26,10 @@ export const STORE_THEMES = [
 ];
 
 export function themeClass(themeId) {
-  const id = STORE_THEMES.some((t) => t.id === themeId) ? themeId : "playful";
-  return `sf-theme-${id}`;
+  if (!STORE_THEMES.some((t) => t.id === themeId)) {
+    return "sf-theme-custom";
+  }
+  return `sf-theme-${themeId}`;
 }
 
 export function getTheme(themeId) {

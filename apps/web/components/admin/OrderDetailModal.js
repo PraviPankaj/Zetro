@@ -34,6 +34,12 @@ export default function OrderDetailModal({ order, show, onHide, onStatusChange, 
           <div className="col-md-4">
             <div className="text-muted small">Total</div>
             <div className="fw-semibold">{money(order.total)}</div>
+            {order.discount_amount > 0 ? (
+              <small className="text-success">
+                Discount {money(order.discount_amount)}
+                {order.coupon_code ? ` (${order.coupon_code})` : ""}
+              </small>
+            ) : null}
           </div>
         </div>
 
@@ -41,7 +47,7 @@ export default function OrderDetailModal({ order, show, onHide, onStatusChange, 
         <div className="mb-4 text-muted small">
           <div>{address.name || "—"}</div>
           <div>{address.phone || "—"}</div>
-          <div>{address.address_line1 || address.address || "—"}</div>
+          <div>{address.line1 || address.address_line1 || address.address || "—"}</div>
           {address.city ? (
             <div>
               {address.city}

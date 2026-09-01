@@ -42,6 +42,6 @@ export function createPlatformCatalogApi(shopId) {
       api.platform.shops.updateCategory(id, categoryId, payload, token()),
     deleteCategory: (categoryId) => api.platform.shops.deleteCategory(id, categoryId, token()),
     updateSettings: (payload) => api.platform.shops.updateSettings(id, payload, token()),
-    listThemes: () => api.platform.themes(token()),
+    listThemes: () => api.platform.themes.list(token()),
   };
 }

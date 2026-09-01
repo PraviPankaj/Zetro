@@ -23,15 +23,24 @@ export default function ShopAdminLayout({ children }) {
       items: [
         { href: `${base}/products`, label: "Products", icon: "shopping-bag" },
         { href: `${base}/categories`, label: "Categories", icon: "folder" },
+        { href: `${base}/inventory`, label: "Inventory", icon: "package" },
       ],
     },
     {
       title: "Order Management",
-      items: [{ href: `${base}/orders`, label: "Orders", icon: "file-text" }],
+      items: [
+        { href: `${base}/orders`, label: "Orders", icon: "file-text" },
+        { href: `${base}/customers`, label: "Customers", icon: "users" },
+      ],
+    },
+    {
+      title: "Marketing",
+      items: [{ href: `${base}/coupons`, label: "Coupons", icon: "tag" }],
     },
     {
       title: "Store",
       items: [
+        { href: `${base}/themes`, label: "Themes", icon: "layout" },
         { href: `${base}/settings`, label: "Settings", icon: "settings" },
         { href: `${base}/payments`, label: "Payments", icon: "credit-card" },
       ],
