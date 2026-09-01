@@ -139,6 +139,12 @@ class Shop(Base):
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     logo_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     storefront_theme: Mapped[str] = mapped_column(String(40), default="playful")
+    meta_title: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    meta_description: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
+    homepage_blocks: Mapped[list] = mapped_column(JSON, default=list)
+    custom_theme_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    theme_variables: Mapped[list] = mapped_column(JSON, default=list)
+    theme_config: Mapped[dict] = mapped_column(JSON, default=dict)
     created_by_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("platform_users.id"), nullable=True
     )
@@ -203,6 +209,30 @@ class Customer(Base):
     name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     addresses: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CouponDiscountType(str, enum.Enum):
+    percent = "percent"
+    fixed = "fixed"
+
+
+class Coupon(Base):
+    __tablename__ = "coupons"
+    __table_args__ = (UniqueConstraint("shop_id", "code"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    shop_id: Mapped[int] = mapped_column(ForeignKey("shops.id", ondelete="CASCADE"), index=True)
+    code: Mapped[str] = mapped_column(String(40))
+    title: Mapped[str] = mapped_column(String(120))
+    discount_type: Mapped[CouponDiscountType] = mapped_column(Enum(CouponDiscountType))
+    discount_value: Mapped[float] = mapped_column(Numeric(10, 2))
+    min_order_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    max_uses: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    used_count: Mapped[int] = mapped_column(Integer, default=0)
+    starts_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    ends_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -339,6 +369,8 @@ class Order(Base):
         Enum(PaymentProvider), default=PaymentProvider.cod
     )
     subtotal: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    discount_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    coupon_code: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     total: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     shipping_address: Mapped[dict] = mapped_column(JSON, default=dict)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -406,3 +438,17 @@ class Payment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     order: Mapped[Order] = relationship(back_populates="payments")
+
+
+class StorefrontTheme(Base):
+    __tablename__ = "storefront_themes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slug: Mapped[str] = mapped_column(String(40), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    html_path: Mapped[str] = mapped_column(String(512))
+    variables: Mapped[list] = mapped_column(JSON, default=list)
+    instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

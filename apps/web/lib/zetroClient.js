@@ -122,7 +122,21 @@ export function createClient({
           request(`/platform/shops/${id}/settings`, { method: "PATCH", body: payload, token }),
         reports: (id, token) => request(`/platform/shops/${id}/reports`, { token }),
       },
-      themes: (token) => request("/platform/themes", { token }),
+      themes: {
+        list: (token) => request("/platform/themes", { token }),
+        upload: async (file, fields, token) => {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("name", fields.name);
+          if (fields.slug) formData.append("slug", fields.slug);
+          if (fields.description) formData.append("description", fields.description);
+          return request("/platform/themes/upload", { method: "POST", formData, token });
+        },
+        update: (slug, payload, token) =>
+          request(`/platform/themes/${slug}`, { method: "PATCH", body: payload, token }),
+        reanalyze: (slug, token) =>
+          request(`/platform/themes/${slug}/reanalyze`, { method: "POST", token }),
+      },
       reports: (token) => request("/platform/reports", { token }),
       plans: (token) => request("/platform/plans", { token }),
     },
@@ -150,6 +164,18 @@ export function createClient({
       },
       product: (productSlug) => request(`/shops/${slug}/catalog/${productSlug}`),
       themes: () => request(`/shops/${slug}/themes`),
+      theme: {
+        get: (token) => request(`/shops/${slug}/admin/theme`, { token }),
+        update: (payload, token) =>
+          request(`/shops/${slug}/admin/theme`, { method: "PATCH", body: payload, token }),
+        uploadAsset: async (file, token) => {
+          const formData = new FormData();
+          formData.append("file", file);
+          return request(`/shops/${slug}/admin/theme/asset`, { method: "POST", formData, token });
+        },
+        render: () => request(`/shops/${slug}/theme/render`),
+        preview: (token) => request(`/shops/${slug}/admin/theme/preview`, { token }),
+      },
       settings: {
         update: (payload, token) =>
           request(`/shops/${slug}/admin/settings`, { method: "PATCH", body: payload, token }),
@@ -190,6 +216,43 @@ export function createClient({
           request(`/shops/${slug}/admin/categories/${id}`, { method: "DELETE", token }),
       },
       dashboard: (token) => request(`/shops/${slug}/admin/dashboard`, { token }),
+      customers: {
+        list: (token) => request(`/shops/${slug}/admin/customers`, { token }),
+      },
+      coupons: {
+        list: (token) => request(`/shops/${slug}/admin/coupons`, { token }),
+        create: (payload, token) =>
+          request(`/shops/${slug}/admin/coupons`, { method: "POST", body: payload, token }),
+        update: (id, payload, token) =>
+          request(`/shops/${slug}/admin/coupons/${id}`, { method: "PATCH", body: payload, token }),
+        delete: (id, token) =>
+          request(`/shops/${slug}/admin/coupons/${id}`, { method: "DELETE", token }),
+        validate: (payload, token) =>
+          request(`/shops/${slug}/admin/coupons/validate`, { method: "POST", body: payload, token }),
+      },
+      inventory: {
+        list: (token) => request(`/shops/${slug}/admin/inventory`, { token }),
+        bulkUpdate: (updates, token) =>
+          request(`/shops/${slug}/admin/inventory/bulk`, {
+            method: "POST",
+            body: { updates },
+            token,
+          }),
+      },
+      exportOrders: async (token) => {
+        const res = await fetch(`${api}/shops/${slug}/admin/orders/export`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new ZetroApiError(res.status, await res.text());
+        return { blob: await res.blob(), filename: `${slug}-orders.csv` };
+      },
+      exportProducts: async (token) => {
+        const res = await fetch(`${api}/shops/${slug}/admin/products/export`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) throw new ZetroApiError(res.status, await res.text());
+        return { blob: await res.blob(), filename: `${slug}-products.csv` };
+      },
       uploadLogo: async (file, token) => {
         const formData = new FormData();
         formData.append("file", file);
@@ -245,6 +308,12 @@ export function createClient({
           }),
         remove: (itemId, token) =>
           request(`/shops/${slug}/cart/items/${itemId}`, { method: "DELETE", token }),
+        validateCoupon: (code, subtotal, token) =>
+          request(`/shops/${slug}/cart/validate-coupon`, {
+            method: "POST",
+            body: { code, subtotal },
+            token,
+          }),
       },
       checkout: (payload, token) =>
         request(`/shops/${slug}/checkout`, { method: "POST", body: payload, token }),

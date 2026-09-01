@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     platform_default_username: str = "admin"
     platform_default_password: str = "admin"
 
+    chatgpt_api_key: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

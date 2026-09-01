@@ -78,6 +78,9 @@ class ShopSettingsUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     owner_phone: Optional[str] = None
+    meta_title: Optional[str] = None
+    meta_description: Optional[str] = None
+    homepage_blocks: Optional[list[dict[str, Any]]] = None
 
 
 class ShopOut(BaseModel):
@@ -279,6 +282,81 @@ class CheckoutRequest(BaseModel):
     payment_provider: str = "cod"
     shipping_address: dict[str, Any]
     notes: Optional[str] = None
+    coupon_code: Optional[str] = None
+
+
+class CouponCreate(BaseModel):
+    code: str
+    title: str
+    discount_type: str
+    discount_value: float = Field(gt=0)
+    min_order_amount: float = 0
+    max_uses: Optional[int] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    is_active: bool = True
+
+
+class CouponUpdate(BaseModel):
+    title: Optional[str] = None
+    discount_type: Optional[str] = None
+    discount_value: Optional[float] = Field(default=None, gt=0)
+    min_order_amount: Optional[float] = None
+    max_uses: Optional[int] = None
+    starts_at: Optional[datetime] = None
+    ends_at: Optional[datetime] = None
+    is_active: Optional[bool] = None
+
+
+class CouponOut(BaseModel):
+    id: int
+    code: str
+    title: str
+    discount_type: str
+    discount_value: float
+    min_order_amount: float
+    max_uses: Optional[int]
+    used_count: int
+    starts_at: Optional[datetime]
+    ends_at: Optional[datetime]
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
+class CouponValidateRequest(BaseModel):
+    code: str
+    subtotal: float
+
+
+class CouponValidateResponse(BaseModel):
+    code: str
+    discount_amount: float
+    total: float
+
+
+class CustomerAdminOut(BaseModel):
+    id: int
+    name: Optional[str]
+    phone: str
+    email: Optional[str] = None
+    order_count: int = 0
+    total_spent: float = 0
+    created_at: datetime
+
+
+class InventoryItemOut(BaseModel):
+    variant_id: int
+    product_id: int
+    product_name: str
+    sku: str
+    stock: int
+    price: float
+    is_active: bool
+
+
+class BulkStockUpdate(BaseModel):
+    updates: list[dict[str, Any]]
 
 
 class OrderOut(BaseModel):
@@ -288,6 +366,8 @@ class OrderOut(BaseModel):
     payment_status: str
     payment_provider: str
     subtotal: float
+    discount_amount: float = 0
+    coupon_code: Optional[str] = None
     total: float
     shipping_address: dict[str, Any]
     created_at: datetime

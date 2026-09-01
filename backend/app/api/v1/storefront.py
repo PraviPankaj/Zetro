@@ -29,6 +29,8 @@ from app.schemas import (
     CartItemIn,
     CartOut,
     CheckoutRequest,
+    CouponValidateRequest,
+    CouponValidateResponse,
     CustomerOut,
     GatewayConfigIn,
     GatewayConfigOut,
@@ -39,6 +41,7 @@ from app.schemas import (
     TokenResponse,
 )
 from app.api.deps import require_shop_user
+from app.services.coupons import apply_coupon, validate_coupon
 from app.services.otp import otp_service
 from app.services.payments import get_provider
 
@@ -185,6 +188,22 @@ def remove_cart_item(
     return _cart_out(db, cart)
 
 
+@router.post("/cart/validate-coupon", response_model=CouponValidateResponse)
+def validate_cart_coupon(
+    slug: str,
+    body: CouponValidateRequest,
+    db: Session = Depends(get_db),
+    ctx=Depends(require_customer),
+):
+    shop, _ = ctx
+    coupon, discount = validate_coupon(db, shop, body.code, body.subtotal)
+    return CouponValidateResponse(
+        code=coupon.code,
+        discount_amount=discount,
+        total=round(body.subtotal - discount, 2),
+    )
+
+
 @router.post("/checkout", response_model=OrderOut)
 def checkout(
     slug: str, body: CheckoutRequest, db: Session = Depends(get_db), ctx=Depends(require_customer)
@@ -222,6 +241,13 @@ def checkout(
     if not cart_data.items:
         raise HTTPException(status_code=400, detail="Cart is empty")
 
+    discount_amount = 0.0
+    coupon_code = None
+    coupon_obj = None
+    if body.coupon_code:
+        coupon_obj, discount_amount = validate_coupon(db, shop, body.coupon_code, cart_data.subtotal)
+        coupon_code = coupon_obj.code
+
     order_number = f"Z{shop.id}-{uuid.uuid4().hex[:8].upper()}"
     order = Order(
         shop_id=shop.id,
@@ -231,12 +257,17 @@ def checkout(
         payment_status=PaymentStatus.pending,
         payment_provider=provider_enum,
         subtotal=cart_data.subtotal,
-        total=cart_data.subtotal,
+        discount_amount=discount_amount,
+        coupon_code=coupon_code,
+        total=round(cart_data.subtotal - discount_amount, 2),
         shipping_address=body.shipping_address,
         notes=body.notes,
     )
     db.add(order)
     db.flush()
+
+    if coupon_obj:
+        apply_coupon(db, coupon_obj)
 
     for item in cart.items:
         variant = item.variant if item.variant else db.get(ProductVariant, item.variant_id)
@@ -292,6 +323,8 @@ def checkout(
         payment_status=order.payment_status.value,
         payment_provider=order.payment_provider.value,
         subtotal=float(order.subtotal),
+        discount_amount=float(order.discount_amount or 0),
+        coupon_code=order.coupon_code,
         total=float(order.total),
         shipping_address=order.shipping_address or {},
         created_at=order.created_at,
@@ -325,6 +358,8 @@ def my_orders(slug: str, db: Session = Depends(get_db), ctx=Depends(require_cust
             payment_status=o.payment_status.value,
             payment_provider=o.payment_provider.value,
             subtotal=float(o.subtotal),
+            discount_amount=float(o.discount_amount or 0),
+            coupon_code=o.coupon_code,
             total=float(o.total),
             shipping_address=o.shipping_address or {},
             created_at=o.created_at,

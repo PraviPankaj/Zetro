@@ -24,6 +24,7 @@ from app.schemas import (
 from app.services import catalog as catalog_service
 from app.services.reports import build_shop_dashboard
 from app.services.shop_registration import save_shop_logo
+from app.services.theme_renderer import is_html_theme
 
 router = APIRouter(prefix="/shops/{slug}", tags=["shop-admin-catalog"])
 
@@ -173,13 +174,19 @@ def update_shop_settings(
     shop, _ = ctx
     data = body.model_dump(exclude_unset=True)
     if "storefront_theme" in data and data["storefront_theme"]:
-        shop.storefront_theme = catalog_service.normalize_theme(data["storefront_theme"])
+        shop.storefront_theme = catalog_service.normalize_theme(data["storefront_theme"], db)
     if "name" in data and data["name"]:
         shop.name = data["name"]
     if "description" in data:
         shop.description = data["description"]
     if "owner_phone" in data and data["owner_phone"]:
         shop.owner_phone = data["owner_phone"]
+    if "meta_title" in data:
+        shop.meta_title = data["meta_title"]
+    if "meta_description" in data:
+        shop.meta_description = data["meta_description"]
+    if "homepage_blocks" in data and data["homepage_blocks"] is not None:
+        shop.homepage_blocks = data["homepage_blocks"]
     db.commit()
     db.refresh(shop)
     return {
@@ -189,6 +196,9 @@ def update_shop_settings(
         "owner_phone": shop.owner_phone,
         "logo_url": shop.logo_url,
         "storefront_theme": shop.storefront_theme,
+        "meta_title": shop.meta_title,
+        "meta_description": shop.meta_description,
+        "homepage_blocks": shop.homepage_blocks or [],
     }
 
 
@@ -227,6 +237,8 @@ def list_orders(slug: str, db: Session = Depends(get_db), ctx=Depends(require_sh
                 payment_status=o.payment_status.value,
                 payment_provider=o.payment_provider.value,
                 subtotal=float(o.subtotal),
+                discount_amount=float(o.discount_amount or 0),
+                coupon_code=o.coupon_code,
                 total=float(o.total),
                 shipping_address=o.shipping_address or {},
                 created_at=o.created_at,
@@ -319,13 +331,17 @@ def shop_info(slug: str, db: Session = Depends(get_db)):
         "owner_phone": shop.owner_phone,
         "logo_url": shop.logo_url,
         "status": shop.status.value,
-        "storefront_theme": catalog_service.normalize_theme(shop.storefront_theme),
+        "storefront_theme": catalog_service.normalize_theme(shop.storefront_theme, db),
+        "meta_title": shop.meta_title,
+        "meta_description": shop.meta_description,
+        "homepage_blocks": shop.homepage_blocks or [],
+        "custom_theme_active": is_html_theme(db, shop.storefront_theme),
     }
 
 
-@router.get("/themes")
-def list_themes():
+@router.get("/themes-legacy")
+def list_themes_legacy():
     return [
         {"id": theme, "name": theme.replace("-", " ").title()}
-        for theme in catalog_service.STOREFRONT_THEMES
+        for theme in catalog_service.PRESET_THEMES
     ]

@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { Card, Col, Form, Row, Table } from "react-bootstrap";
+import { Card, Col, Form, Row, Table, Button } from "react-bootstrap";
 import KpiCard from "../../../../components/admin/KpiCard";
 import OrderDetailModal from "../../../../components/admin/OrderDetailModal";
 import StatusBadge from "../../../../components/admin/StatusBadge";
-import { api, getToken } from "../../../../lib/api";
+import { exportShopOrders } from "../../../../lib/exportApi";
 
 const STATUSES = ["pending", "confirmed", "packed", "shipped", "delivered", "cancelled"];
 
@@ -59,9 +59,14 @@ export default function ShopOrdersPage() {
 
   return (
     <>
-      <div className="admin-page-header">
-        <h2 className="mb-1">Orders</h2>
-        <p className="text-muted mb-0">Manage and track customer orders</p>
+      <div className="admin-page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
+        <div>
+          <h2 className="mb-1">Orders</h2>
+          <p className="text-muted mb-0">Manage and track customer orders</p>
+        </div>
+        <Button variant="outline-secondary" size="sm" onClick={() => exportShopOrders(slug)}>
+          Export CSV
+        </Button>
       </div>
 
       <Row className="g-3 mb-4">
