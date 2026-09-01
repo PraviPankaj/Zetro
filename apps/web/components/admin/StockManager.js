@@ -16,7 +16,7 @@ const emptyForm = {
 
 function CategoryPicker({ categories, value, onChange, idPrefix = "cat" }) {
   if (!categories.length) {
-    return <p className="text-muted small mb-0">No categories yet. Create one below.</p>;
+    return <p className="text-muted small mb-0">No categories yet — add one with “Add category”.</p>;
   }
   return (
     <div className="d-flex flex-wrap gap-2">
@@ -40,6 +40,83 @@ function CategoryPicker({ categories, value, onChange, idPrefix = "cat" }) {
   );
 }
 
+function ImageFilePicker({ files, onChange, label = "Images" }) {
+  function onSelect(e) {
+    const picked = Array.from(e.target.files || []);
+    if (!picked.length) return;
+    onChange([...files, ...picked]);
+    e.target.value = "";
+  }
+
+  function removeAt(index) {
+    onChange(files.filter((_, i) => i !== index));
+  }
+
+  return (
+    <Form.Group>
+      <Form.Label>{label}</Form.Label>
+      <Form.Control type="file" accept="image/*" multiple onChange={onSelect} />
+      <Form.Text className="text-muted">Select one or more images. You can add more before saving.</Form.Text>
+      {files.length ? (
+        <div className="d-flex gap-2 flex-wrap mt-2">
+          {files.map((file, index) => (
+            <div key={`${file.name}-${index}`} className="position-relative">
+              <img
+                src={URL.createObjectURL(file)}
+                alt=""
+                width={72}
+                height={72}
+                style={{ objectFit: "cover", borderRadius: 6 }}
+              />
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                className="position-absolute top-0 end-0 translate-middle rounded-circle p-0"
+                style={{ width: 22, height: 22, fontSize: 14, lineHeight: 1 }}
+                title="Remove"
+                onClick={() => removeAt(index)}
+              >
+                ×
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </Form.Group>
+  );
+}
+
+function ProductImages({ images, productId, onDelete }) {
+  if (!images?.length) return null;
+  return (
+    <div className="d-flex gap-2 flex-wrap">
+      {images.map((im) => (
+        <div key={im.id} className="position-relative">
+          <img
+            src={im.url}
+            alt=""
+            width={72}
+            height={72}
+            style={{ objectFit: "cover", borderRadius: 6 }}
+          />
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            className="position-absolute top-0 end-0 translate-middle rounded-circle p-0"
+            style={{ width: 22, height: 22, fontSize: 14, lineHeight: 1 }}
+            title="Remove image"
+            onClick={() => onDelete(productId, im.id)}
+          >
+            ×
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function StockManager({
   catalogApi,
   title = "Stock",
@@ -53,12 +130,14 @@ export default function StockManager({
   const [categories, setCategories] = useState([]);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [showAddCategory, setShowAddCategory] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [newFiles, setNewFiles] = useState([]);
   const [catForm, setCatForm] = useState({ name: "", slug: "", parent_id: "" });
-  const [files, setFiles] = useState({});
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState(emptyForm);
-  const [editFile, setEditFile] = useState(null);
+  const [editFiles, setEditFiles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [themeSaving, setThemeSaving] = useState(false);
 
@@ -71,8 +150,21 @@ export default function StockManager({
     load();
   }, [catalogApi]);
 
+  async function uploadAllImages(productId, fileList) {
+    for (const file of fileList) {
+      await catalogApi.uploadImage(productId, file);
+    }
+  }
+
+  function resetAddProduct() {
+    setForm(emptyForm);
+    setNewFiles([]);
+    setShowAddProduct(false);
+  }
+
   async function onSubmit(e) {
     e.preventDefault();
+    setSaving(true);
     setError("");
     setMessage("");
     try {
@@ -90,15 +182,16 @@ export default function StockManager({
           },
         ],
       });
-      if (files.new) {
-        await catalogApi.uploadImage(product.id, files.new);
+      if (newFiles.length) {
+        await uploadAllImages(product.id, newFiles);
       }
-      setForm(emptyForm);
-      setFiles({});
+      resetAddProduct();
       setMessage("Product added");
       load();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -116,7 +209,7 @@ export default function StockManager({
       variantId: variant?.id,
       categoryIds: (product.categories || []).map((c) => c.id),
     });
-    setEditFile(null);
+    setEditFiles([]);
     setError("");
     setMessage("");
   }
@@ -144,8 +237,8 @@ export default function StockManager({
           },
         ],
       });
-      if (editFile) {
-        await catalogApi.uploadImage(editing.id, editFile);
+      if (editFiles.length) {
+        await uploadAllImages(editing.id, editFiles);
       }
       setEditing(null);
       setMessage("Product updated");
@@ -154,16 +247,6 @@ export default function StockManager({
       setError(err.message);
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function onExtraImage(productId, file) {
-    if (!file) return;
-    try {
-      await catalogApi.uploadImage(productId, file);
-      load();
-    } catch (err) {
-      setError(err.message);
     }
   }
 
@@ -203,6 +286,7 @@ export default function StockManager({
 
   async function createCategory(e) {
     e.preventDefault();
+    setSaving(true);
     setError("");
     try {
       await catalogApi.createCategory({
@@ -211,10 +295,13 @@ export default function StockManager({
         parent_id: catForm.parent_id ? Number(catForm.parent_id) : null,
       });
       setCatForm({ name: "", slug: "", parent_id: "" });
+      setShowAddCategory(false);
       setMessage("Category created");
       load();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -225,7 +312,13 @@ export default function StockManager({
           <h2 className="mb-1">{title}</h2>
           {subtitle ? <p className="text-muted mb-0">{subtitle}</p> : null}
         </div>
-        {headerActions}
+        <div className="d-flex flex-wrap gap-2 align-items-center">
+          <Button onClick={() => setShowAddProduct(true)}>Add product</Button>
+          <Button variant="outline-primary" onClick={() => setShowAddCategory(true)}>
+            Add category
+          </Button>
+          {headerActions}
+        </div>
       </div>
 
       {showThemePicker ? (
@@ -254,76 +347,91 @@ export default function StockManager({
       ) : null}
 
       {message ? <Alert variant="success">{message}</Alert> : null}
-      {error && !editing ? <Alert variant="danger">{error}</Alert> : null}
-      <Row>
-        <Col lg={8}>
-          <Card>
-            <Table responsive className="text-nowrap mb-0 align-middle">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Categories</th>
-                  <th>Price</th>
-                  <th>Stock</th>
-                  <th>Images</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((p) => (
-                  <tr key={p.id}>
-                    <td>
-                      <div className="d-flex align-items-center gap-2">
-                        {p.images?.[0]?.url ? (
-                          <img
-                            src={p.images[0].url}
-                            alt=""
-                            width={40}
-                            height={40}
-                            style={{ objectFit: "cover", borderRadius: 4 }}
-                          />
-                        ) : null}
-                        <div>
-                          <div className="fw-semibold">{p.name}</div>
-                          <small className="text-muted">{p.slug}</small>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <small className="text-muted">
-                        {(p.categories || []).map((c) => c.name).join(", ") || "—"}
-                      </small>
-                    </td>
-                    <td>{p.variants?.[0] ? `₹${p.variants[0].price}` : "—"}</td>
-                    <td>{p.variants?.[0]?.stock}</td>
-                    <td>{p.images?.length || 0}</td>
-                    <td>
-                      <div className="d-flex gap-2 align-items-center flex-wrap">
-                        <Button size="sm" variant="outline-primary" onClick={() => openEdit(p)}>
-                          Edit
-                        </Button>
-                        <Button size="sm" variant="outline-danger" onClick={() => onDelete(p)}>
-                          Delete
-                        </Button>
-                        <Form.Control
-                          type="file"
-                          size="sm"
-                          style={{ maxWidth: 160 }}
-                          onChange={(e) => onExtraImage(p.id, e.target.files?.[0])}
+      {error && !editing && !showAddProduct && !showAddCategory ? (
+        <Alert variant="danger">{error}</Alert>
+      ) : null}
+
+      <Card>
+        <Table responsive className="mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Categories</th>
+              <th>Price</th>
+              <th>Stock</th>
+              <th className="text-center">Images</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="text-muted text-center py-4">
+                  No products yet. Click <strong>Add product</strong> to get started.
+                </td>
+              </tr>
+            ) : (
+              products.map((p) => (
+                <tr key={p.id}>
+                  <td style={{ minWidth: 180 }}>
+                    <div className="d-flex align-items-center gap-2">
+                      {p.images?.[0]?.url ? (
+                        <img
+                          src={p.images[0].url}
+                          alt=""
+                          width={40}
+                          height={40}
+                          style={{ objectFit: "cover", borderRadius: 4, flexShrink: 0 }}
                         />
+                      ) : (
+                        <div
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 4,
+                            background: "#eee",
+                            flexShrink: 0,
+                          }}
+                        />
+                      )}
+                      <div>
+                        <div className="fw-semibold">{p.name}</div>
+                        <small className="text-muted">{p.slug}</small>
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </Card>
-        </Col>
-        <Col lg={4}>
-          <Card>
-            <Card.Body>
-              <h4>Add product</h4>
-              <Form onSubmit={onSubmit}>
+                    </div>
+                  </td>
+                  <td style={{ maxWidth: 200 }}>
+                    <small className="text-muted">
+                      {(p.categories || []).map((c) => c.name).join(", ") || "—"}
+                    </small>
+                  </td>
+                  <td className="text-nowrap">{p.variants?.[0] ? `₹${p.variants[0].price}` : "—"}</td>
+                  <td>{p.variants?.[0]?.stock}</td>
+                  <td className="text-center">{p.images?.length || 0}</td>
+                  <td className="text-nowrap">
+                    <Button size="sm" variant="outline-primary" className="me-2" onClick={() => openEdit(p)}>
+                      Edit
+                    </Button>
+                    <Button size="sm" variant="outline-danger" onClick={() => onDelete(p)}>
+                      Delete
+                    </Button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </Table>
+      </Card>
+
+      <Modal show={showAddProduct} onHide={resetAddProduct} centered size="lg">
+        <Form onSubmit={onSubmit}>
+          <Modal.Header closeButton>
+            <Modal.Title>Add product</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {error && showAddProduct ? <Alert variant="danger">{error}</Alert> : null}
+            <Row>
+              <Col md={6}>
                 <Form.Group className="mb-2">
                   <Form.Label>Name</Form.Label>
                   <Form.Control
@@ -332,6 +440,8 @@ export default function StockManager({
                     required
                   />
                 </Form.Group>
+              </Col>
+              <Col md={6}>
                 <Form.Group className="mb-2">
                   <Form.Label>Slug</Form.Label>
                   <Form.Control
@@ -340,6 +450,10 @@ export default function StockManager({
                     placeholder="blue-shirt"
                   />
                 </Form.Group>
+              </Col>
+            </Row>
+            <Row>
+              <Col md={4}>
                 <Form.Group className="mb-2">
                   <Form.Label>Price</Form.Label>
                   <Form.Control
@@ -349,6 +463,8 @@ export default function StockManager({
                     required
                   />
                 </Form.Group>
+              </Col>
+              <Col md={4}>
                 <Form.Group className="mb-2">
                   <Form.Label>Stock</Form.Label>
                   <Form.Control
@@ -357,81 +473,99 @@ export default function StockManager({
                     onChange={(e) => setForm({ ...form, stock: e.target.value })}
                   />
                 </Form.Group>
+              </Col>
+              <Col md={4}>
                 <Form.Group className="mb-2">
-                  <Form.Label>Categories</Form.Label>
-                  <CategoryPicker
-                    categories={categories}
-                    value={form.categoryIds}
-                    onChange={(categoryIds) => setForm({ ...form, categoryIds })}
-                    idPrefix="new-cat"
-                  />
-                </Form.Group>
-                <Form.Group className="mb-2">
-                  <Form.Label>Images</Form.Label>
+                  <Form.Label>SKU</Form.Label>
                   <Form.Control
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setFiles({ new: e.target.files?.[0] })}
+                    value={form.sku}
+                    onChange={(e) => setForm({ ...form, sku: e.target.value })}
                   />
                 </Form.Group>
-                <Form.Group className="mb-3">
-                  <Form.Label>Description</Form.Label>
-                  <Form.Control
-                    as="textarea"
-                    rows={3}
-                    value={form.description}
-                    onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  />
-                </Form.Group>
-                <Button type="submit">Save product</Button>
-              </Form>
-            </Card.Body>
-          </Card>
-          <Card className="mt-3">
-            <Card.Body>
-              <h4>Categories</h4>
-              <p className="text-muted small">
-                Products can belong to multiple categories (e.g. Kids Pants and Kids Clothing).
-              </p>
-              <Form onSubmit={createCategory}>
-                <Form.Group className="mb-2">
-                  <Form.Label>Name</Form.Label>
-                  <Form.Control
-                    value={catForm.name}
-                    onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
-                    required
-                  />
-                </Form.Group>
-                <Form.Group className="mb-2">
-                  <Form.Label>Slug</Form.Label>
-                  <Form.Control
-                    value={catForm.slug}
-                    onChange={(e) => setCatForm({ ...catForm, slug: e.target.value })}
-                    placeholder="kids-pants"
-                  />
-                </Form.Group>
-                <Form.Group className="mb-3">
-                  <Form.Label>Parent category</Form.Label>
-                  <Form.Select
-                    value={catForm.parent_id}
-                    onChange={(e) => setCatForm({ ...catForm, parent_id: e.target.value })}
-                  >
-                    <option value="">None (top level)</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </Form.Select>
-                </Form.Group>
-                <Button type="submit" variant="outline-primary">
-                  Add category
-                </Button>
-              </Form>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
+              </Col>
+            </Row>
+            <Form.Group className="mb-2">
+              <Form.Label>Categories</Form.Label>
+              <CategoryPicker
+                categories={categories}
+                value={form.categoryIds}
+                onChange={(categoryIds) => setForm({ ...form, categoryIds })}
+                idPrefix="new-cat"
+              />
+            </Form.Group>
+            <Form.Group className="mb-2">
+              <Form.Label>Description</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={3}
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+              />
+            </Form.Group>
+            <ImageFilePicker files={newFiles} onChange={setNewFiles} />
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="outline-secondary" onClick={resetAddProduct}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Saving…" : "Save product"}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
+
+      <Modal show={showAddCategory} onHide={() => setShowAddCategory(false)} centered>
+        <Form onSubmit={createCategory}>
+          <Modal.Header closeButton>
+            <Modal.Title>Add category</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {error && showAddCategory ? <Alert variant="danger">{error}</Alert> : null}
+            <p className="text-muted small">
+              Products can belong to multiple categories (e.g. Kids Pants and Kids Clothing).
+            </p>
+            <Form.Group className="mb-2">
+              <Form.Label>Name</Form.Label>
+              <Form.Control
+                value={catForm.name}
+                onChange={(e) => setCatForm({ ...catForm, name: e.target.value })}
+                required
+              />
+            </Form.Group>
+            <Form.Group className="mb-2">
+              <Form.Label>Slug</Form.Label>
+              <Form.Control
+                value={catForm.slug}
+                onChange={(e) => setCatForm({ ...catForm, slug: e.target.value })}
+                placeholder="kids-pants"
+              />
+            </Form.Group>
+            <Form.Group className="mb-2">
+              <Form.Label>Parent category</Form.Label>
+              <Form.Select
+                value={catForm.parent_id}
+                onChange={(e) => setCatForm({ ...catForm, parent_id: e.target.value })}
+              >
+                <option value="">None (top level)</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Form.Select>
+            </Form.Group>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="outline-secondary" onClick={() => setShowAddCategory(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={saving}>
+              {saving ? "Saving…" : "Add category"}
+            </Button>
+          </Modal.Footer>
+        </Form>
+      </Modal>
 
       <Modal show={!!editing} onHide={() => setEditing(null)} centered size="lg">
         <Form onSubmit={saveEdit}>
@@ -506,44 +640,26 @@ export default function StockManager({
             </Form.Group>
             <Form.Check
               type="switch"
-              className="mb-2"
+              className="mb-3"
               label="Active on storefront"
               checked={!!editForm.is_active}
               onChange={(e) => setEditForm({ ...editForm, is_active: e.target.checked })}
             />
-            <Form.Group>
-              <Form.Label>Add image</Form.Label>
-              <Form.Control type="file" accept="image/*" onChange={(e) => setEditFile(e.target.files?.[0])} />
-            </Form.Group>
             {editing?.images?.length ? (
-              <div className="mt-3">
-                <Form.Label className="mb-2">Images</Form.Label>
-                <div className="d-flex gap-2 flex-wrap">
-                  {editing.images.map((im) => (
-                    <div key={im.id} className="position-relative">
-                      <img
-                        src={im.url}
-                        alt=""
-                        width={72}
-                        height={72}
-                        style={{ objectFit: "cover", borderRadius: 6 }}
-                      />
-                      <Button
-                        type="button"
-                        variant="danger"
-                        size="sm"
-                        className="position-absolute top-0 end-0 translate-middle rounded-circle p-0"
-                        style={{ width: 22, height: 22, fontSize: 14, lineHeight: 1 }}
-                        title="Remove image"
-                        onClick={() => onDeleteImage(editing.id, im.id)}
-                      >
-                        ×
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <Form.Group className="mb-3">
+                <Form.Label>Current images</Form.Label>
+                <ProductImages
+                  images={editing.images}
+                  productId={editing.id}
+                  onDelete={onDeleteImage}
+                />
+              </Form.Group>
             ) : null}
+            <ImageFilePicker
+              files={editFiles}
+              onChange={setEditFiles}
+              label="Add more images"
+            />
           </Modal.Body>
           <Modal.Footer>
             <Button variant="outline-secondary" onClick={() => setEditing(null)}>
