@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
-import CategoryNav from "../../../components/store/CategoryNav";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import ProductCard from "../../../components/store/ProductCard";
+import ProductFilterTabs from "../../../components/store/ProductFilterTabs";
 import { api } from "../../../lib/api";
-import { filterProducts, money } from "../../../lib/storefront";
+import { filterProducts, topLevelCategories } from "../../../lib/storefront";
 
 function SearchResults() {
   const { slug } = useParams();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const q = searchParams.get("q") || "";
   const categorySlug = searchParams.get("category") || "";
@@ -33,69 +35,58 @@ function SearchResults() {
     () => filterProducts(products, q, { categorySlug, categories }),
     [products, q, categorySlug, categories]
   );
+  const tops = useMemo(() => topLevelCategories(categories), [categories]);
+
+  function setCategoryFilter(id) {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (id && id !== "all") params.set("category", id);
+    const qs = params.toString();
+    router.push(`/${slug}/search${qs ? `?${qs}` : ""}`);
+  }
 
   return (
-    <section className="sf-section">
-      <p className="sf-eyebrow">Search</p>
-      <h1 className="sf-search-title">
-        {q ? (
-          <>
-            Results for <span>&ldquo;{q}&rdquo;</span>
-          </>
-        ) : (
-          "Search products"
-        )}
-      </h1>
-      <p className="sf-search-meta">
-        {loading ? "Searching…" : `${results.length} product${results.length === 1 ? "" : "s"} found`}
-      </p>
-
-      <CategoryNav slug={slug} categories={categories} activeSlug={categorySlug} />
-
-      {!loading && results.length === 0 ? (
-        <div className="sf-search-empty">
-          <p>
-            No matches yet. Try &ldquo;kids pants&rdquo;, &ldquo;plush&rdquo;, or browse a category above.
+    <section className="bg0 p-t-23 p-b-140">
+      <div className="container">
+        <div className="p-b-10">
+          <h3 className="ltext-103 cl5">
+            {q ? <>Results for &ldquo;{q}&rdquo;</> : "Search products"}
+          </h3>
+          <p className="stext-102 cl6 p-t-10">
+            {loading ? "Searching…" : `${results.length} product${results.length === 1 ? "" : "s"} found`}
           </p>
-          <Link href={`/${slug}`} className="sf-btn">
-            Browse all
-          </Link>
         </div>
-      ) : (
-        <div className="sf-grid">
-          {results.map((p) => {
-            const img = p.images?.[0]?.url;
-            const price = p.variants?.[0]?.price;
-            const compare = p.variants?.[0]?.compare_at_price;
-            return (
-              <Link key={p.id} href={`/${slug}/product/${p.slug}`} className="sf-product">
-                <div className="sf-product-media">
-                  {img ? <img src={img} alt={p.name} /> : <div className="sf-product-ph" />}
-                </div>
-                <div className="sf-product-meta">
-                  <h3>{p.name}</h3>
-                  {(p.categories || []).length ? (
-                    <p className="sf-product-cats">
-                      {(p.categories || []).map((c) => c.name).join(" · ")}
-                    </p>
-                  ) : null}
-                  <div className="sf-price-row">
-                    <span>{money(price)}</span>
-                    {compare ? <s>{money(compare)}</s> : null}
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+
+        <div className="p-b-40">
+          <ProductFilterTabs
+            active={categorySlug || "all"}
+            onChange={setCategoryFilter}
+            items={[
+              { id: "all", label: "All" },
+              ...tops.map((cat) => ({ id: cat.slug, label: cat.name })),
+            ]}
+          />
         </div>
-      )}
+
+        {!loading && results.length === 0 ? (
+          <p className="stext-102 cl6">
+            No matches. <Link href={`/${slug}`}>Browse all</Link>
+          </p>
+        ) : (
+          <div className="row">
+            {results.map((p) => (
+              <ProductCard key={p.id} slug={slug} product={p} />
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div className="sf-section">Loading search…</div>}>
+    <Suspense fallback={<div className="p-t-100 p-b-100 txt-center">Loading search…</div>}>
       <SearchResults />
     </Suspense>
   );

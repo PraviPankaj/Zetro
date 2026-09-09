@@ -3,33 +3,23 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import Carousel from "../../components/store/Carousel";
-import CategoryNav from "../../components/store/CategoryNav";
+import HeroSlider from "../../components/store/HeroSlider";
+import ProductCard from "../../components/store/ProductCard";
+import ProductFilterTabs from "../../components/store/ProductFilterTabs";
 import CustomThemeHome from "../../components/store/CustomThemeHome";
+import { COZA_ASSETS } from "../../components/store/CozaAssets";
 import { api } from "../../lib/api";
-import { filterProducts, money } from "../../lib/storefront";
+import { filterProducts, topLevelCategories } from "../../lib/storefront";
 
-const HERO_FALLBACKS = [
-  {
-    id: "h1",
-    image:
-      "https://images.unsplash.com/photo-1596464716127-f2a82984de30?auto=format&fit=crop&w=1800&q=80",
-  },
-  {
-    id: "h2",
-    image:
-      "https://images.unsplash.com/photo-1516627145497-ae6968895b74?auto=format&fit=crop&w=1800&q=80",
-  },
-  {
-    id: "h3",
-    image:
-      "https://images.unsplash.com/photo-1587654780291-39c9404d746b?auto=format&fit=crop&w=1800&q=80",
-  },
+const BANNER_IMAGES = [
+  `${COZA_ASSETS}/images/banner-01.jpg`,
+  `${COZA_ASSETS}/images/banner-02.jpg`,
+  `${COZA_ASSETS}/images/banner-03.jpg`,
 ];
 
 export default function ShopHome() {
   return (
-    <Suspense fallback={<div className="sf-section">Loading…</div>}>
+    <Suspense fallback={<div className="p-t-100 p-b-100 txt-center">Loading…</div>}>
       <ShopHomeContent />
     </Suspense>
   );
@@ -43,6 +33,7 @@ function ShopHomeContent() {
   const [shop, setShop] = useState(null);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [filter, setFilter] = useState("all");
 
   useEffect(() => {
     api.shop(slug).info().then(setShop);
@@ -50,64 +41,15 @@ function ShopHomeContent() {
     api.shop(slug).categories.browse().then(setCategories);
   }, [slug]);
 
-  const visibleProducts = useMemo(
-    () => filterProducts(products, query, { categorySlug, categories }),
-    [products, query, categorySlug, categories]
-  );
+  const tops = useMemo(() => topLevelCategories(categories), [categories]);
 
-  const heroSlides = useMemo(() => {
-    const cmsSlides = (shop?.homepage_blocks || [])
-      .filter((b) => b.image_url || b.title)
-      .map((b, i) => ({
-        id: b.id || `cms-${i}`,
-        image: b.image_url,
-        eyebrow: shop?.name || "Shop",
-        title: b.title || shop?.name,
-        subtitle: b.subtitle || shop?.description,
-        cta: b.cta || "Shop now",
-        href: b.href || `/${slug}#catalog`,
-      }));
-    if (cmsSlides.length) return cmsSlides;
-
-    const withImages = products.filter((p) => p.images?.[0]?.url).slice(0, 4);
-    if (!withImages.length) {
-      return HERO_FALLBACKS.map((s, i) => ({
-        ...s,
-        eyebrow: shop?.name || "ABC Kids",
-        title: i === 0 ? shop?.name || "ABC Kids" : "New for little ones",
-        subtitle:
-          shop?.description ||
-          "Clothes, toys, and little treasures for growing explorers.",
-        cta: "Shop kids",
-        href: `/${slug}#catalog`,
-      }));
+  const visibleProducts = useMemo(() => {
+    let list = filterProducts(products, query, { categorySlug, categories });
+    if (filter !== "all") {
+      list = filterProducts(list, "", { categorySlug: filter, categories });
     }
-    return withImages.map((p, i) => ({
-      id: p.id,
-      image: p.images[0].url,
-      eyebrow: shop?.name || "ABC Kids",
-      title: i === 0 ? shop?.name || p.name : p.name,
-      subtitle:
-        i === 0
-          ? shop?.description || p.description
-          : p.description || "Made for play, naps, and big adventures.",
-      cta: i === 0 ? "Shop kids" : "View product",
-      href: i === 0 ? `/${slug}#catalog` : `/${slug}/product/${p.slug}`,
-    }));
-  }, [products, shop, slug]);
-
-  const featuredSlides = useMemo(
-    () =>
-      products.slice(0, 6).map((p) => ({
-        id: `f-${p.id}`,
-        image: p.images?.[0]?.url || HERO_FALLBACKS[0].image,
-        title: p.name,
-        subtitle: money(p.variants?.[0]?.price),
-        href: `/${slug}/product/${p.slug}`,
-        cta: "View",
-      })),
-    [products, slug]
-  );
+    return list;
+  }, [products, query, categorySlug, categories, filter]);
 
   if (shop?.custom_theme_active) {
     return <CustomThemeHome />;
@@ -115,84 +57,61 @@ function ShopHomeContent() {
 
   return (
     <>
-      <section className="sf-hero-wrap">
-        <Carousel slides={heroSlides} aspect="hero" interval={6000} />
-      </section>
+      <HeroSlider slug={slug} shop={shop} products={products} />
 
-      <section className="sf-section sf-intro">
-        <p className="sf-eyebrow">For little explorers</p>
-        <h2>Playful picks, parent-approved</h2>
-        <p>
-          {shop?.description ||
-            "A joyful edit of clothes, toys, and everyday essentials for babies and kids."}
-        </p>
-      </section>
-
-      {featuredSlides.length && !query && !categorySlug ? (
-        <section className="sf-section sf-featured">
-          <div className="sf-section-head">
-            <div>
-              <p className="sf-eyebrow">Featured</p>
-              <h2>Little favourites</h2>
-            </div>
-            <a className="sf-text-link" href="#catalog">
-              Full catalog
-            </a>
-          </div>
-          <Carousel slides={featuredSlides} aspect="feature" interval={4500} />
-        </section>
-      ) : null}
-
-      <section className="sf-section" id="catalog">
-        <div className="sf-section-head">
-          <div>
-            <p className="sf-eyebrow">In stock</p>
-            <h2>
-              {query
-                ? `Results for “${query}”`
-                : categorySlug
-                  ? `In ${categories.find((c) => c.slug === categorySlug)?.name || "category"}`
-                  : "Shop by category"}
-            </h2>
-          </div>
-          {query || categorySlug ? (
-            <Link href={`/${slug}`} className="sf-text-link">
-              Clear filters
-            </Link>
-          ) : null}
-        </div>
-
-        <CategoryNav slug={slug} categories={categories} activeSlug={categorySlug} />
-        {visibleProducts.length === 0 ? (
-          <p className="sf-search-empty-inline">No products match your search.</p>
-        ) : (
-          <div className="sf-grid">
-            {visibleProducts.map((p) => {
-              const img = p.images?.[0]?.url;
-              const price = p.variants?.[0]?.price;
-              const compare = p.variants?.[0]?.compare_at_price;
-              return (
-                <Link key={p.id} href={`/${slug}/product/${p.slug}`} className="sf-product">
-                  <div className="sf-product-media">
-                    {img ? <img src={img} alt={p.name} /> : <div className="sf-product-ph" />}
-                  </div>
-                  <div className="sf-product-meta">
-                    <h3>{p.name}</h3>
-                    {(p.categories || []).length ? (
-                      <p className="sf-product-cats">
-                        {(p.categories || []).map((c) => c.name).join(" · ")}
-                      </p>
-                    ) : null}
-                    <div className="sf-price-row">
-                      <span>{money(price)}</span>
-                      {compare ? <s>{money(compare)}</s> : null}
+      <div className="sec-banner bg0 p-t-80 p-b-50">
+        <div className="container">
+          <div className="row">
+            {(tops.length ? tops.slice(0, 3) : [{ id: "all", name: "Shop", slug: null }]).map((cat, i) => (
+              <div key={cat.id} className="col-md-6 col-xl-4 p-b-30 m-lr-auto">
+                <div className="block1 wrap-pic-w">
+                  <img src={BANNER_IMAGES[i % BANNER_IMAGES.length]} alt={cat.name} />
+                  <Link
+                    href={cat.slug ? `/${slug}/category/${cat.slug}` : `/${slug}#catalog`}
+                    className="block1-txt ab-t-l s-full flex-col-l-sb p-lr-38 p-tb-34 trans-03 respon3"
+                  >
+                    <div className="block1-txt-child1 flex-col-l">
+                      <span className="block1-name ltext-102 trans-04 p-b-8">{cat.name}</span>
+                      <span className="block1-info stext-102 trans-04">{shop?.name || "Collection"}</span>
                     </div>
-                  </div>
-                </Link>
-              );
-            })}
+                    <div className="block1-txt-child2 p-b-4 trans-05">
+                      <div className="block1-link stext-101 cl0 trans-09">Shop Now</div>
+                    </div>
+                  </Link>
+                </div>
+              </div>
+            ))}
           </div>
-        )}
+        </div>
+      </div>
+
+      <section className="bg0 p-t-23 p-b-140" id="catalog">
+        <div className="container">
+          <div className="p-b-10">
+            <h3 className="ltext-103 cl5">Product Overview</h3>
+          </div>
+
+          <div className="p-b-40">
+            <ProductFilterTabs
+              active={filter}
+              onChange={setFilter}
+              items={[
+                { id: "all", label: "All Products" },
+                ...tops.map((cat) => ({ id: cat.slug, label: cat.name })),
+              ]}
+            />
+          </div>
+
+          {visibleProducts.length === 0 ? (
+            <p className="stext-102 cl6 txt-center p-t-40">No products match your search.</p>
+          ) : (
+            <div className="row">
+              {visibleProducts.map((p) => (
+                <ProductCard key={p.id} slug={slug} product={p} />
+              ))}
+            </div>
+          )}
+        </div>
       </section>
     </>
   );
