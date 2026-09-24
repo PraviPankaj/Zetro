@@ -4,6 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { api, notifyAuthChange, setTokens } from "../../../lib/api";
+import {
+  confirmFirebaseOtp,
+  isFirebasePhoneAuthEnabled,
+  sendFirebasePhoneOtp,
+} from "../../../lib/firebase";
 
 export default function CustomerLogin() {
   const { slug } = useParams();
@@ -14,29 +19,56 @@ export default function CustomerLogin() {
   const [devOtp, setDevOtp] = useState("");
   const [step, setStep] = useState("phone");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [confirmation, setConfirmation] = useState(null);
+  const useFirebase = isFirebasePhoneAuthEnabled();
 
   async function requestOtp(e) {
     e.preventDefault();
     setError("");
+    setLoading(true);
     try {
-      const res = await api.shop(slug).customerOtpRequest(phone);
-      setDevOtp(res.dev_otp || "");
-      setStep("otp");
+      if (useFirebase) {
+        const conf = await sendFirebasePhoneOtp(phone);
+        setConfirmation(conf);
+        setDevOtp("");
+        setStep("otp");
+      } else {
+        const res = await api.shop(slug).customerOtpRequest(phone);
+        setDevOtp(res.dev_otp || "");
+        setConfirmation(null);
+        setStep("otp");
+      }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Could not send OTP");
+      if (typeof window !== "undefined") {
+        window.__zetroRecaptchaVerifier = null;
+      }
+    } finally {
+      setLoading(false);
     }
   }
 
   async function verify(e) {
     e.preventDefault();
     setError("");
+    setLoading(true);
     try {
-      const tokens = await api.shop(slug).customerOtpVerify(phone, otp, name);
-      setTokens("customer", slug, tokens);
+      if (useFirebase) {
+        if (!confirmation) throw new Error("Request OTP again");
+        const { idToken } = await confirmFirebaseOtp(confirmation, otp);
+        const tokens = await api.shop(slug).customerFirebaseLogin(idToken, name || undefined);
+        setTokens("customer", slug, tokens);
+      } else {
+        const tokens = await api.shop(slug).customerOtpVerify(phone, otp, name);
+        setTokens("customer", slug, tokens);
+      }
       notifyAuthChange();
       router.push(`/${slug}`);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Verification failed");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -60,6 +92,11 @@ export default function CustomerLogin() {
             onSubmit={step === "phone" ? requestOtp : verify}
           >
             <h4 className="mtext-109 cl2 p-b-30">Customer login</h4>
+            {useFirebase ? (
+              <p className="stext-102 cl6 p-b-20">Sign in with your mobile — OTP via Firebase.</p>
+            ) : (
+              <p className="stext-102 cl6 p-b-20">Dev mode: OTP is shown on screen (no SMS).</p>
+            )}
             {error ? <p className="stext-102 cl1 p-b-20">{error}</p> : null}
             {step === "phone" ? (
               <>
@@ -80,8 +117,12 @@ export default function CustomerLogin() {
                     onChange={(e) => setName(e.target.value)}
                   />
                 </div>
-                <button type="submit" className="flex-c-m stext-101 cl0 size-116 bg3 bor14 hov-btn3 p-lr-15 trans-04 pointer">
-                  Send OTP
+                <button
+                  type="submit"
+                  className="flex-c-m stext-101 cl0 size-116 bg3 bor14 hov-btn3 p-lr-15 trans-04 pointer"
+                  disabled={loading}
+                >
+                  {loading ? "Sending…" : "Send OTP"}
                 </button>
               </>
             ) : (
@@ -96,11 +137,27 @@ export default function CustomerLogin() {
                     required
                   />
                 </div>
-                <button type="submit" className="flex-c-m stext-101 cl0 size-116 bg3 bor14 hov-btn3 p-lr-15 trans-04 pointer">
-                  Verify
+                <button
+                  type="submit"
+                  className="flex-c-m stext-101 cl0 size-116 bg3 bor14 hov-btn3 p-lr-15 trans-04 pointer"
+                  disabled={loading}
+                >
+                  {loading ? "Verifying…" : "Verify"}
+                </button>
+                <button
+                  type="button"
+                  className="flex-c-m stext-101 cl6 size-116 p-t-20 pointer"
+                  onClick={() => {
+                    setStep("phone");
+                    setConfirmation(null);
+                    setOtp("");
+                  }}
+                >
+                  Change number
                 </button>
               </>
             )}
+            <div id="firebase-recaptcha" />
           </form>
         </div>
       </div>

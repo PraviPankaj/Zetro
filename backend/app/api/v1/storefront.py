@@ -32,6 +32,7 @@ from app.schemas import (
     CouponValidateRequest,
     CouponValidateResponse,
     CustomerOut,
+    FirebaseAuthRequest,
     GatewayConfigIn,
     GatewayConfigOut,
     OTPRequest,
@@ -42,6 +43,7 @@ from app.schemas import (
 )
 from app.api.deps import require_shop_user
 from app.services.coupons import apply_coupon, validate_coupon
+from app.services.firebase_auth import normalize_phone, phone_lookup_candidates, verify_firebase_id_token
 from app.services.otp import otp_service
 from app.services.payments import get_provider
 
@@ -78,6 +80,37 @@ def customer_otp_verify(slug: str, body: OTPVerify, db: Session = Depends(get_db
         access_token=create_access_token(str(customer.id), claims),
         refresh_token=create_refresh_token(str(customer.id), claims),
     )
+
+
+def _customer_token_response(customer: Customer, shop_id: int) -> TokenResponse:
+    claims = {"kind": "customer", "shop_id": shop_id}
+    return TokenResponse(
+        access_token=create_access_token(str(customer.id), claims),
+        refresh_token=create_refresh_token(str(customer.id), claims),
+    )
+
+
+@router.post("/customer/auth/firebase", response_model=TokenResponse)
+def customer_firebase_login(slug: str, body: FirebaseAuthRequest, db: Session = Depends(get_db)):
+    """Verify Firebase phone ID token; create customer if new."""
+    shop = get_shop_by_slug(slug, db)
+    verified = verify_firebase_id_token(body.id_token)
+    candidates = phone_lookup_candidates(verified["phone_number"])
+    phone = normalize_phone(verified["phone_number"]) or candidates[0]
+
+    customer = db.scalar(
+        select(Customer).where(Customer.shop_id == shop.id, Customer.phone.in_(candidates))
+    )
+    if not customer:
+        customer = Customer(shop_id=shop.id, phone=phone, name=body.name)
+        db.add(customer)
+        db.commit()
+        db.refresh(customer)
+    elif body.name and not customer.name:
+        customer.name = body.name
+        db.commit()
+
+    return _customer_token_response(customer, shop.id)
 
 
 @router.get("/customer/me", response_model=CustomerOut)

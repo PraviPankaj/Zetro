@@ -18,12 +18,14 @@ from app.models import (
 )
 from app.schemas import (
     ActivatePlanRequest,
+    FirebaseAuthRequest,
     OTPRequest,
     OTPVerify,
     PlanOut,
     SubscriptionOut,
     TokenResponse,
 )
+from app.services.firebase_auth import phone_lookup_candidates, verify_firebase_id_token
 from app.services.otp import otp_service
 
 router = APIRouter(prefix="/shops/{slug}", tags=["shop-auth"])
@@ -96,11 +98,45 @@ def shop_otp_verify(slug: str, body: OTPVerify, db: Session = Depends(get_db)):
     return _shop_user_token_response(user, shop)
 
 
+@router.post("/auth/firebase", response_model=TokenResponse)
+def shop_firebase_login(slug: str, body: FirebaseAuthRequest, db: Session = Depends(get_db)):
+    """Verify Firebase phone ID token and issue shop-admin JWT."""
+    shop = get_shop_by_slug(slug, db)
+    if shop.status == ShopStatus.suspended:
+        raise HTTPException(status_code=403, detail="Shop suspended")
+
+    verified = verify_firebase_id_token(body.id_token)
+    candidates = phone_lookup_candidates(verified["phone_number"])
+    user = db.scalar(
+        select(ShopUser).where(
+            ShopUser.shop_id == shop.id,
+            ShopUser.phone.in_(candidates),
+            ShopUser.is_active.is_(True),
+        )
+    )
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="No shop staff account for this phone. Ask the owner to add you first.",
+        )
+    if body.name:
+        user.name = body.name
+        db.commit()
+    return _shop_user_token_response(user, shop)
+
+
 @router.get("/admin/me")
 def shop_admin_me(ctx=Depends(require_shop_user)):
     shop, user = ctx
     return {
-        "shop": {"id": shop.id, "name": shop.name, "slug": shop.slug, "status": shop.status.value},
+        "shop": {
+            "id": shop.id,
+            "name": shop.name,
+            "slug": shop.slug,
+            "status": shop.status.value,
+            "shop_mode": getattr(shop, "shop_mode", None) or "both",
+            "gst_enabled": bool(getattr(shop, "gst_enabled", False)),
+        },
         "user": {
             "id": user.id,
             "phone": user.phone,

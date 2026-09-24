@@ -18,6 +18,7 @@ export default function ShopSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [seo, setSeo] = useState({ meta_title: "", meta_description: "" });
   const [blocks, setBlocks] = useState([]);
+  const [gst, setGst] = useState({ gst_enabled: false, gst_rate: 18 });
 
   useEffect(() => {
     api.shop(slug).info().then((info) => {
@@ -32,6 +33,10 @@ export default function ShopSettingsPage() {
         meta_description: info.meta_description || "",
       });
       setBlocks(info.homepage_blocks || []);
+      setGst({
+        gst_enabled: !!info.gst_enabled,
+        gst_rate: Number(info.gst_rate ?? 18),
+      });
     });
   }, [slug]);
 
@@ -56,6 +61,28 @@ export default function ShopSettingsPage() {
     try {
       await catalogApi.updateSettings({ homepage_blocks: blocks });
       setMessage("Homepage updated");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveGst(e) {
+    e.preventDefault();
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await catalogApi.updateSettings({
+        gst_enabled: gst.gst_enabled,
+        gst_rate: Number(gst.gst_rate) || 0,
+      });
+      setGst({
+        gst_enabled: !!result.gst_enabled,
+        gst_rate: Number(result.gst_rate ?? gst.gst_rate),
+      });
+      setMessage("GST settings saved");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -121,8 +148,14 @@ export default function ShopSettingsPage() {
       <div className="admin-page-header">
         <h2 className="mb-1">Settings</h2>
         <p className="text-muted mb-0">
-          Manage your shop profile. For storefront themes, go to{" "}
-          <Link href={`/${slug}/admin/themes`}>Themes</Link>.
+          {shop?.shop_mode === "billing"
+            ? "Manage your shop profile and GST for counter billing."
+            : (
+              <>
+                Manage your shop profile. For storefront themes, go to{" "}
+                <Link href={`/${slug}/admin/themes`}>Themes</Link>.
+              </>
+            )}
         </p>
       </div>
 
@@ -144,11 +177,18 @@ export default function ShopSettingsPage() {
               <Nav.Item>
                 <Nav.Link eventKey="shop">Shop info</Nav.Link>
               </Nav.Item>
+              {shop?.shop_mode !== "billing" ? (
+                <>
+                  <Nav.Item>
+                    <Nav.Link eventKey="seo">SEO</Nav.Link>
+                  </Nav.Item>
+                  <Nav.Item>
+                    <Nav.Link eventKey="homepage">Homepage</Nav.Link>
+                  </Nav.Item>
+                </>
+              ) : null}
               <Nav.Item>
-                <Nav.Link eventKey="seo">SEO</Nav.Link>
-              </Nav.Item>
-              <Nav.Item>
-                <Nav.Link eventKey="homepage">Homepage</Nav.Link>
+                <Nav.Link eventKey="gst">GST / Billing</Nav.Link>
               </Nav.Item>
             </Nav>
           </Card.Header>
@@ -312,6 +352,39 @@ export default function ShopSettingsPage() {
                   ))}
                   <Button type="submit" disabled={saving}>
                     {saving ? "Saving…" : "Save homepage"}
+                  </Button>
+                </Form>
+              </Tab.Pane>
+              <Tab.Pane eventKey="gst">
+                <Form onSubmit={saveGst}>
+                  <p className="text-muted">
+                    Control GST on in-shop billing. Default is off. Online checkout is unchanged.
+                  </p>
+                  <Form.Check
+                    type="switch"
+                    className="mb-3"
+                    id="gst-enabled"
+                    label="Enable GST on shop bills"
+                    checked={!!gst.gst_enabled}
+                    onChange={(e) => setGst({ ...gst, gst_enabled: e.target.checked })}
+                  />
+                  <Form.Group className="mb-3" style={{ maxWidth: 200 }}>
+                    <Form.Label>GST rate (%)</Form.Label>
+                    <Form.Control
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.01}
+                      value={gst.gst_rate}
+                      disabled={!gst.gst_enabled}
+                      onChange={(e) => setGst({ ...gst, gst_rate: e.target.value })}
+                    />
+                  </Form.Group>
+                  <p className="small text-muted">
+                    Bills always round to the nearest rupee. GST applies only when enabled here.
+                  </p>
+                  <Button type="submit" disabled={saving}>
+                    {saving ? "Saving…" : "Save GST settings"}
                   </Button>
                 </Form>
               </Tab.Pane>

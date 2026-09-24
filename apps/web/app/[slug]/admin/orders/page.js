@@ -7,8 +7,10 @@ import KpiCard from "../../../../components/admin/KpiCard";
 import OrderDetailModal from "../../../../components/admin/OrderDetailModal";
 import StatusBadge from "../../../../components/admin/StatusBadge";
 import { exportShopOrders } from "../../../../lib/exportApi";
+import { api, getToken } from "../../../../lib/api";
 
-const STATUSES = ["pending", "confirmed", "packed", "shipped", "delivered", "cancelled"];
+const COMMERCE_STATUSES = ["pending", "confirmed", "packed", "shipped", "delivered", "cancelled"];
+const BILLING_STATUSES = ["pending", "confirmed", "delivered", "cancelled"];
 
 function money(value) {
   if (value == null) return "—";
@@ -21,13 +23,24 @@ export default function ShopOrdersPage() {
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [shopMode, setShopMode] = useState("both");
+
+  const isBilling = shopMode === "billing";
+  const statuses = isBilling ? BILLING_STATUSES : COMMERCE_STATUSES;
 
   function load() {
-    api.shop(slug).orders.list(getToken("shop", slug)).then(setOrders);
+    const token = getToken("shop", slug);
+    api.shop(slug).orders.list(token).then(setOrders);
   }
 
   useEffect(() => {
+    const token = getToken("shop", slug);
     load();
+    api
+      .shop(slug)
+      .adminMe(token)
+      .then((me) => setShopMode(me.shop?.shop_mode || "both"))
+      .catch(() => {});
   }, [slug]);
 
   async function changeStatus(id, status) {
@@ -40,10 +53,10 @@ export default function ShopOrdersPage() {
 
   const statusCounts = useMemo(() => {
     const counts = {};
-    for (const s of STATUSES) counts[s] = 0;
+    for (const s of statuses) counts[s] = 0;
     for (const o of orders) counts[o.status] = (counts[o.status] || 0) + 1;
     return counts;
-  }, [orders]);
+  }, [orders, statuses]);
 
   const filtered = orders.filter((o) => {
     if (statusFilter && o.status !== statusFilter) return false;
@@ -61,8 +74,12 @@ export default function ShopOrdersPage() {
     <>
       <div className="admin-page-header d-flex justify-content-between align-items-start flex-wrap gap-3">
         <div>
-          <h2 className="mb-1">Orders</h2>
-          <p className="text-muted mb-0">Manage and track customer orders</p>
+          <h2 className="mb-1">{isBilling ? "Bills & refunds" : "Orders"}</h2>
+          <p className="text-muted mb-0">
+            {isBilling
+              ? "View counter bills. Cancel restores stock and marks the payment refunded."
+              : "Manage and track customer orders"}
+          </p>
         </div>
         <Button variant="outline-secondary" size="sm" onClick={() => exportShopOrders(slug)}>
           Export CSV
@@ -73,10 +90,10 @@ export default function ShopOrdersPage() {
         <Col sm={6} md={4} lg={2}>
           <KpiCard label="Total" value={orders.length} />
         </Col>
-        {STATUSES.map((s) => (
+        {statuses.map((s) => (
           <Col sm={6} md={4} lg={2} key={s}>
             <KpiCard
-              label={s}
+              label={isBilling && s === "cancelled" ? "Cancelled / refunded" : s}
               value={statusCounts[s] || 0}
               variant={s === "delivered" ? "success" : s === "cancelled" ? "danger" : "default"}
             />
@@ -87,11 +104,13 @@ export default function ShopOrdersPage() {
       <Card className="admin-table-card">
         <Card.Header>
           <div className="d-flex flex-wrap gap-2 align-items-center justify-content-between">
-            <span>All orders ({filtered.length})</span>
+            <span>
+              {isBilling ? "All bills" : "All orders"} ({filtered.length})
+            </span>
             <div className="d-flex gap-2">
               <Form.Control
                 size="sm"
-                placeholder="Search order, customer…"
+                placeholder={isBilling ? "Search bill, customer…" : "Search order, customer…"}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 style={{ width: 200 }}
@@ -103,7 +122,7 @@ export default function ShopOrdersPage() {
                 style={{ width: 140 }}
               >
                 <option value="">All statuses</option>
-                {STATUSES.map((s) => (
+                {statuses.map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>
@@ -115,7 +134,7 @@ export default function ShopOrdersPage() {
         <Table responsive className="mb-0 text-nowrap align-middle">
           <thead>
             <tr>
-              <th>Number</th>
+              <th>{isBilling ? "Bill #" : "Number"}</th>
               <th>Customer</th>
               <th>Items</th>
               <th>Total</th>
@@ -161,7 +180,7 @@ export default function ShopOrdersPage() {
             ) : (
               <tr>
                 <td colSpan={8} className="text-muted text-center py-4">
-                  No orders found
+                  {isBilling ? "No bills found" : "No orders found"}
                 </td>
               </tr>
             )}
@@ -173,7 +192,8 @@ export default function ShopOrdersPage() {
         order={selected}
         show={!!selected}
         onHide={() => setSelected(null)}
-        statuses={STATUSES}
+        statuses={statuses}
+        billingMode={isBilling}
         onStatusChange={changeStatus}
       />
     </>

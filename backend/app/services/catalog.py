@@ -60,6 +60,7 @@ def serialize_product(product: Product) -> ProductOut:
         id=product.id,
         name=product.name,
         slug=product.slug,
+        barcode=product.barcode,
         description=product.description,
         category_id=product.category_id,
         categories=[CategoryBrief.model_validate(c) for c in (product.categories or [])],
@@ -157,10 +158,18 @@ def delete_category(db: Session, shop: Shop, category_id: int) -> None:
 
 def create_product(db: Session, shop: Shop, body: ProductCreate) -> ProductOut:
     category_ids = resolve_category_ids(body.category_ids, body.category_id)
+    barcode = (body.barcode or "").strip() or None
+    if barcode:
+        existing = db.scalar(
+            select(Product).where(Product.shop_id == shop.id, Product.barcode == barcode)
+        )
+        if existing:
+            raise HTTPException(status_code=400, detail="Barcode already used by another product")
     product = Product(
         shop_id=shop.id,
         name=body.name,
         slug=body.slug,
+        barcode=barcode,
         description=body.description,
         category_id=category_ids[0] if category_ids else None,
         is_active=body.is_active,
@@ -208,6 +217,20 @@ def update_product(db: Session, shop: Shop, product_id: int, body: ProductUpdate
     for field in ("name", "slug", "description", "is_active"):
         if field in data:
             setattr(product, field, data[field])
+
+    if "barcode" in data:
+        barcode = (data["barcode"] or "").strip() or None
+        if barcode:
+            clash = db.scalar(
+                select(Product).where(
+                    Product.shop_id == shop.id,
+                    Product.barcode == barcode,
+                    Product.id != product.id,
+                )
+            )
+            if clash:
+                raise HTTPException(status_code=400, detail="Barcode already used by another product")
+        product.barcode = barcode
 
     if "category_ids" in data or "category_id" in data:
         category_ids = resolve_category_ids(data.get("category_ids"), data.get("category_id"))

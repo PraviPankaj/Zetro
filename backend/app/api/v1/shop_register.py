@@ -11,7 +11,15 @@ from app.api.deps import bearer
 from app.core.config import get_settings
 from app.core.security import create_access_token, create_refresh_token, create_token, decode_token
 from app.db.session import get_db
-from app.schemas import OTPRequest, OTPVerify, RegisterShopResponse, RegistrationTokenResponse, ShopOut
+from app.schemas import (
+    FirebaseAuthRequest,
+    OTPRequest,
+    OTPVerify,
+    RegisterShopResponse,
+    RegistrationTokenResponse,
+    ShopOut,
+)
+from app.services.firebase_auth import verify_firebase_id_token
 from app.services.otp import otp_service
 from app.services.shop_registration import (
     REGISTER_PURPOSE,
@@ -73,15 +81,39 @@ def register_otp_verify(body: OTPVerify, db: Session = Depends(get_db)):
     )
 
 
+@router.post("/firebase", response_model=RegistrationTokenResponse)
+def register_firebase(body: FirebaseAuthRequest, db: Session = Depends(get_db)):
+    """Verify Firebase phone ID token and continue shop registration."""
+    del db
+    verified = verify_firebase_id_token(body.id_token)
+    try:
+        phone = normalize_phone(verified["phone_number"])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    settings = get_settings()
+    token = create_token(
+        phone,
+        {"kind": "shop_register", "phone": phone},
+        timedelta(minutes=settings.registration_token_expire_minutes),
+    )
+    return RegistrationTokenResponse(
+        registration_token=token,
+        expires_in=settings.registration_token_expire_minutes * 60,
+        phone=phone,
+    )
+
+
 @router.post("/shop", response_model=RegisterShopResponse)
 async def register_shop(
     name: str = Form(...),
     slug: Optional[str] = Form(None),
+    shop_mode: str = Form("both"),
     logo: Optional[UploadFile] = File(None),
     phone: str = Depends(require_registration_phone),
     db: Session = Depends(get_db),
 ):
-    shop, user = await create_registered_shop(db, phone, name, slug, logo)
+    shop, user = await create_registered_shop(db, phone, name, slug, logo, shop_mode=shop_mode)
     claims = {
         "kind": "shop_user",
         "shop_id": shop.id,

@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { Card, Col, Row } from "react-bootstrap";
 
-export default function AuthCard({ title, subtitle, children, footer }) {
+export default function AuthCard({ title, subtitle, children, footer, wide = false }) {
+  const colProps = wide
+    ? { xxl: 7, lg: 9, md: 10, xs: 12 }
+    : { xxl: 4, lg: 6, md: 8, xs: 12 };
+
   return (
     <Row className="align-items-center justify-content-center g-0 min-vh-100">
-      <Col xxl={4} lg={6} md={8} xs={12} className="py-8 py-xl-0">
+      <Col {...colProps} className="py-8 py-xl-0">
         <Card className="smooth-shadow-md">
           <Card.Body className="p-6">
             <div className="mb-4">

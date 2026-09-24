@@ -53,6 +53,10 @@ services:
           envVarKey: RENDER_EXTERNAL_URL
       - key: CHATGPT_API_KEY
         sync: false
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false
+      - key: AUTH_PROVIDER
+        value: firebase
 
   - type: web
     name: zetro
@@ -68,3 +72,13 @@ services:
           type: web
           name: zetro-api
           envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_FIREBASE_API_KEY
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_APP_ID
+        sync: false
+      - key: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+        sync: false

@@ -8,10 +8,12 @@ const emptyForm = {
   name: "",
   slug: "",
   description: "",
+  barcode: "",
   price: "",
   stock: "10",
   sku: "",
   categoryIds: [],
+  is_active: false,
 };
 
 function CategoryPicker({ categories, value, onChange, idPrefix = "cat" }) {
@@ -40,7 +42,7 @@ function CategoryPicker({ categories, value, onChange, idPrefix = "cat" }) {
   );
 }
 
-function ImageFilePicker({ files, onChange, label = "Images" }) {
+function ImageFilePicker({ files, onChange, label = "Images (optional)" }) {
   function onSelect(e) {
     const picked = Array.from(e.target.files || []);
     if (!picked.length) return;
@@ -56,7 +58,7 @@ function ImageFilePicker({ files, onChange, label = "Images" }) {
     <Form.Group>
       <Form.Label>{label}</Form.Label>
       <Form.Control type="file" accept="image/*" multiple onChange={onSelect} />
-      <Form.Text className="text-muted">Select one or more images. You can add more before saving.</Form.Text>
+      <Form.Text className="text-muted">Optional — products work without photos.</Form.Text>
       {files.length ? (
         <div className="d-flex gap-2 flex-wrap mt-2">
           {files.map((file, index) => (
@@ -176,7 +178,9 @@ export default function StockManager({
         name: form.name,
         slug: form.slug || form.name.toLowerCase().replace(/\s+/g, "-"),
         description: form.description,
+        barcode: form.barcode?.trim() || null,
         category_ids: form.categoryIds,
+        is_active: false,
         variants: [
           {
             sku: form.sku || `${form.slug || "sku"}-1`,
@@ -206,6 +210,7 @@ export default function StockManager({
       name: product.name || "",
       slug: product.slug || "",
       description: product.description || "",
+      barcode: product.barcode || "",
       price: variant?.price ?? "",
       stock: variant?.stock ?? 0,
       sku: variant?.sku || "",
@@ -228,6 +233,7 @@ export default function StockManager({
         name: editForm.name,
         slug: editForm.slug,
         description: editForm.description,
+        barcode: editForm.barcode?.trim() || null,
         is_active: editForm.is_active,
         category_ids: editForm.categoryIds,
         price: Number(editForm.price),
@@ -548,6 +554,14 @@ export default function StockManager({
               </Col>
             </Row>
             <Form.Group className="mb-2">
+              <Form.Label>Barcode</Form.Label>
+              <Form.Control
+                value={form.barcode}
+                onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                placeholder="Optional — for scanner stock-in / billing"
+              />
+            </Form.Group>
+            <Form.Group className="mb-2">
               <Form.Label>Categories</Form.Label>
               <CategoryPicker
                 categories={categories}
@@ -565,6 +579,9 @@ export default function StockManager({
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
             </Form.Group>
+            <p className="small text-muted mb-2">
+              New products stay off the storefront until you enable “Active on storefront” in edit.
+            </p>
             <ImageFilePicker files={newFiles} onChange={setNewFiles} />
           </Modal.Body>
           <Modal.Footer>
@@ -681,6 +698,14 @@ export default function StockManager({
               <Form.Control
                 value={editForm.sku}
                 onChange={(e) => setEditForm({ ...editForm, sku: e.target.value })}
+              />
+            </Form.Group>
+            <Form.Group className="mb-2">
+              <Form.Label>Barcode</Form.Label>
+              <Form.Control
+                value={editForm.barcode || ""}
+                onChange={(e) => setEditForm({ ...editForm, barcode: e.target.value })}
+                placeholder="Scan or type barcode"
               />
             </Form.Group>
             <Form.Group className="mb-2">
