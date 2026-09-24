@@ -9,7 +9,16 @@ from sqlalchemy.orm import Session, joinedload
 from app.api.deps import get_shop_by_slug, require_shop_user
 from app.db.seed import utcnow
 from app.db.session import get_db
-from app.models import Order, OrderStatus, Product, ShopSubscription, SubscriptionStatus
+from app.models import (
+    Order,
+    OrderStatus,
+    OrderStatusHistory,
+    PaymentStatus,
+    Product,
+    ProductVariant,
+    ShopSubscription,
+    SubscriptionStatus,
+)
 from app.schemas import (
     CategoryCreate,
     CategoryOut,
@@ -187,6 +196,10 @@ def update_shop_settings(
         shop.meta_description = data["meta_description"]
     if "homepage_blocks" in data and data["homepage_blocks"] is not None:
         shop.homepage_blocks = data["homepage_blocks"]
+    if "gst_enabled" in data and data["gst_enabled"] is not None:
+        shop.gst_enabled = bool(data["gst_enabled"])
+    if "gst_rate" in data and data["gst_rate"] is not None:
+        shop.gst_rate = data["gst_rate"]
     db.commit()
     db.refresh(shop)
     return {
@@ -199,6 +212,8 @@ def update_shop_settings(
         "meta_title": shop.meta_title,
         "meta_description": shop.meta_description,
         "homepage_blocks": shop.homepage_blocks or [],
+        "gst_enabled": bool(shop.gst_enabled),
+        "gst_rate": float(shop.gst_rate or 0),
     }
 
 
@@ -236,8 +251,11 @@ def list_orders(slug: str, db: Session = Depends(get_db), ctx=Depends(require_sh
                 status=o.status.value,
                 payment_status=o.payment_status.value,
                 payment_provider=o.payment_provider.value,
+                channel=getattr(o, "channel", None) or "online",
                 subtotal=float(o.subtotal),
                 discount_amount=float(o.discount_amount or 0),
+                tax_amount=float(getattr(o, "tax_amount", 0) or 0),
+                round_off=float(getattr(o, "round_off", 0) or 0),
                 coupon_code=o.coupon_code,
                 total=float(o.total),
                 shipping_address=o.shipping_address or {},
@@ -266,12 +284,39 @@ def update_order_status(
     ctx=Depends(require_shop_user),
 ):
     shop, _ = ctx
-    order = db.scalar(select(Order).where(Order.id == order_id, Order.shop_id == shop.id))
+    order = db.scalar(
+        select(Order)
+        .options(joinedload(Order.items))
+        .where(Order.id == order_id, Order.shop_id == shop.id)
+    )
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+
+    previous = order.status
+    # Cancel / refund: restore stock once when moving into cancelled
+    if status == OrderStatus.cancelled and previous != OrderStatus.cancelled:
+        for item in order.items:
+            variant = db.get(ProductVariant, item.variant_id)
+            if variant and variant.shop_id == shop.id:
+                variant.stock = int(variant.stock or 0) + int(item.quantity or 0)
+        if order.payment_status == PaymentStatus.paid:
+            order.payment_status = PaymentStatus.refunded
+        db.add(
+            OrderStatusHistory(
+                shop_id=shop.id,
+                order_id=order.id,
+                status=OrderStatus.cancelled,
+                note="Cancelled — stock restored",
+            )
+        )
+
     order.status = status
     db.commit()
-    return {"message": "updated", "status": order.status.value}
+    return {
+        "message": "updated",
+        "status": order.status.value,
+        "payment_status": order.payment_status.value,
+    }
 
 
 @router.get("/catalog", response_model=list[ProductOut])
@@ -336,6 +381,9 @@ def shop_info(slug: str, db: Session = Depends(get_db)):
         "meta_description": shop.meta_description,
         "homepage_blocks": shop.homepage_blocks or [],
         "custom_theme_active": is_html_theme(db, shop.storefront_theme),
+        "gst_enabled": bool(getattr(shop, "gst_enabled", False)),
+        "gst_rate": float(getattr(shop, "gst_rate", 18) or 0),
+        "shop_mode": getattr(shop, "shop_mode", None) or "both",
     }
 
 

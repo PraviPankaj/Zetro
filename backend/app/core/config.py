@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     demo_shop_slug: str = "abc"
     demo_shop_phone: str = "9999999999"
 
+    # Auth: console = server OTP (dev); firebase = client phone auth + server ID token verify
+    auth_provider: str = "console"  # console | firebase
+    # Service account JSON string OR path to JSON file (prefer env string on Render)
+    firebase_credentials_json: str = ""
+    firebase_credentials_path: str = ""
+
     media_root: str = "./uploads"
     media_url_prefix: str = "/media"
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://localhost:3002"

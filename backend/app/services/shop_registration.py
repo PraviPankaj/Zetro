@@ -102,10 +102,15 @@ async def create_registered_shop(
     name: str,
     slug: Optional[str] = None,
     logo: Optional[UploadFile] = None,
+    shop_mode: str = "both",
 ) -> tuple[Shop, ShopUser]:
     name = (name or "").strip()
     if len(name) < 2:
         raise HTTPException(status_code=400, detail="Shop name is too short")
+
+    mode = (shop_mode or "both").strip().lower()
+    if mode not in {"billing", "commerce", "both"}:
+        raise HTTPException(status_code=400, detail="Invalid shop mode")
 
     if slug:
         shop_slug = validate_slug(slug)
@@ -121,6 +126,7 @@ async def create_registered_shop(
         description=None,
         status=ShopStatus.active,
         storefront_theme=normalize_theme(None),
+        shop_mode=mode,
         created_by_id=None,
     )
     db.add(shop)

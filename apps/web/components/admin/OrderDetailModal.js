@@ -1,6 +1,6 @@
 "use client";
 
-import { Modal, Table } from "react-bootstrap";
+import { Modal, Table, Button } from "react-bootstrap";
 import StatusBadge from "./StatusBadge";
 
 function money(value) {
@@ -8,15 +8,25 @@ function money(value) {
   return `₹${Number(value).toLocaleString("en-IN")}`;
 }
 
-export default function OrderDetailModal({ order, show, onHide, onStatusChange, statuses }) {
+export default function OrderDetailModal({
+  order,
+  show,
+  onHide,
+  onStatusChange,
+  statuses,
+  billingMode = false,
+}) {
   if (!order) return null;
 
   const address = order.shipping_address || {};
+  const isCancelled = order.status === "cancelled";
 
   return (
     <Modal show={show} onHide={onHide} size="lg" centered>
       <Modal.Header closeButton>
-        <Modal.Title>Order {order.order_number}</Modal.Title>
+        <Modal.Title>
+          {billingMode ? "Bill" : "Order"} {order.order_number}
+        </Modal.Title>
       </Modal.Header>
       <Modal.Body>
         <div className="row g-3 mb-4">
@@ -84,7 +94,39 @@ export default function OrderDetailModal({ order, show, onHide, onStatusChange, 
           </tbody>
         </Table>
 
-        {statuses?.length ? (
+        {billingMode ? (
+          <div className="d-flex flex-wrap gap-2 align-items-center">
+            {!isCancelled ? (
+              <>
+                <Button
+                  variant="outline-danger"
+                  size="sm"
+                  onClick={() => onStatusChange?.(order.id, "cancelled")}
+                >
+                  Cancel &amp; refund
+                </Button>
+                <small className="text-muted">
+                  Restores stock and sets payment to refunded.
+                </small>
+              </>
+            ) : (
+              <small className="text-muted">This bill was cancelled; stock was restored.</small>
+            )}
+            {(statuses || [])
+              .filter((s) => s !== "cancelled")
+              .map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`btn btn-sm ${order.status === s ? "btn-primary" : "btn-outline-secondary"}`}
+                  onClick={() => onStatusChange?.(order.id, s)}
+                  disabled={isCancelled}
+                >
+                  {s}
+                </button>
+              ))}
+          </div>
+        ) : statuses?.length ? (
           <>
             <h6 className="mb-2">Update status</h6>
             <div className="d-flex flex-wrap gap-2">

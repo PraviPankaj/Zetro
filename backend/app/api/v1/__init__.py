@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import catalog, platform_auth, platform_shop_ops, platform_shops, platform_themes, shop_auth, shop_phase2, shop_register, shop_themes, storefront
+from app.api.v1 import catalog, platform_auth, platform_shop_ops, platform_shops, platform_themes, shop_auth, shop_phase2, shop_register, shop_retail, shop_themes, storefront
 
 api_router = APIRouter()
 api_router.include_router(platform_auth.router)
@@ -11,5 +11,6 @@ api_router.include_router(shop_register.router)
 api_router.include_router(shop_auth.router)
 api_router.include_router(catalog.router)
 api_router.include_router(shop_phase2.router)
+api_router.include_router(shop_retail.router)
 api_router.include_router(shop_themes.router)
 api_router.include_router(storefront.router)

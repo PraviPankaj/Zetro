@@ -81,6 +81,8 @@ class ShopSettingsUpdate(BaseModel):
     meta_title: Optional[str] = None
     meta_description: Optional[str] = None
     homepage_blocks: Optional[list[dict[str, Any]]] = None
+    gst_enabled: Optional[bool] = None
+    gst_rate: Optional[float] = Field(default=None, ge=0, le=100)
 
 
 class ShopOut(BaseModel):
@@ -92,6 +94,7 @@ class ShopOut(BaseModel):
     description: Optional[str]
     logo_url: Optional[str] = None
     storefront_theme: str = "playful"
+    shop_mode: str = "both"
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -102,6 +105,13 @@ class ShopOut(BaseModel):
         if not value or not isinstance(value, str):
             return "playful"
         return value if value in {"playful", "classic", "fresh", "minimal"} else "playful"
+
+    @field_validator("shop_mode", mode="before")
+    @classmethod
+    def normalize_shop_mode(cls, value: object) -> str:
+        if value in {"billing", "commerce", "both"}:
+            return str(value)
+        return "both"
 
 
 class PlanOut(BaseModel):
@@ -125,6 +135,11 @@ class OTPRequest(BaseModel):
 class OTPVerify(BaseModel):
     phone: str
     otp: str
+    name: Optional[str] = None
+
+
+class FirebaseAuthRequest(BaseModel):
+    id_token: str
     name: Optional[str] = None
 
 
@@ -194,10 +209,12 @@ class ProductCreate(BaseModel):
     name: str
     slug: str
     description: Optional[str] = None
+    barcode: Optional[str] = None
     category_id: Optional[int] = None
     category_ids: list[int] = Field(default_factory=list)
     variants: list[VariantIn] = Field(default_factory=list)
-    is_active: bool = True
+    # Off storefront until owner enables
+    is_active: bool = False
 
 
 class VariantUpdate(BaseModel):
@@ -213,6 +230,7 @@ class ProductUpdate(BaseModel):
     name: Optional[str] = None
     slug: Optional[str] = None
     description: Optional[str] = None
+    barcode: Optional[str] = None
     category_id: Optional[int] = None
     category_ids: Optional[list[int]] = None
     is_active: Optional[bool] = None
@@ -246,6 +264,7 @@ class ProductOut(BaseModel):
     id: int
     name: str
     slug: str
+    barcode: Optional[str] = None
     description: Optional[str]
     category_id: Optional[int]
     categories: list[CategoryBrief] = []
@@ -365,8 +384,11 @@ class OrderOut(BaseModel):
     status: str
     payment_status: str
     payment_provider: str
+    channel: str = "online"
     subtotal: float
     discount_amount: float = 0
+    tax_amount: float = 0
+    round_off: float = 0
     coupon_code: Optional[str] = None
     total: float
     shipping_address: dict[str, Any]
@@ -374,6 +396,40 @@ class OrderOut(BaseModel):
     items: list[dict[str, Any]] = []
 
     model_config = {"from_attributes": True}
+
+
+class BarcodeStockIn(BaseModel):
+    barcode: str
+    quantity: int = Field(ge=1, default=1)
+    # Used when creating a new product for an unknown barcode
+    name: Optional[str] = None
+    price: Optional[float] = Field(default=None, ge=0)
+    sku: Optional[str] = None
+
+
+class PosBillItemIn(BaseModel):
+    variant_id: int
+    quantity: int = Field(ge=1)
+    unit_price: Optional[float] = Field(default=None, ge=0)
+
+
+class PosBillCreate(BaseModel):
+    items: list[PosBillItemIn] = Field(min_length=1)
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    notes: Optional[str] = None
+    # Override shop GST for this bill; None = use shop setting
+    apply_gst: Optional[bool] = None
+
+
+class PosBillPreview(BaseModel):
+    subtotal: float
+    tax_amount: float
+    round_off: float
+    total: float
+    gst_enabled: bool
+    gst_rate: float
+    items: list[dict[str, Any]] = []
 
 
 class GatewayConfigIn(BaseModel):

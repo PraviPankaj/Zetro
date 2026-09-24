@@ -71,6 +71,27 @@ def run_migrations(engine: Engine) -> None:
                     conn.execute(text("ALTER TABLE shops ADD COLUMN theme_config JSON DEFAULT '{}'"))
                 else:
                     conn.execute(text("ALTER TABLE shops ADD COLUMN theme_config JSONB DEFAULT '{}'"))
+            if "gst_enabled" not in cols:
+                if dialect == "sqlite":
+                    conn.execute(text("ALTER TABLE shops ADD COLUMN gst_enabled BOOLEAN DEFAULT 0"))
+                else:
+                    conn.execute(text("ALTER TABLE shops ADD COLUMN gst_enabled BOOLEAN DEFAULT FALSE"))
+            if "gst_rate" not in cols:
+                conn.execute(text("ALTER TABLE shops ADD COLUMN gst_rate NUMERIC(5,2) DEFAULT 18"))
+
+        if "products" in tables:
+            prod_cols = {c["name"] for c in inspector.get_columns("products")}
+            if "barcode" not in prod_cols:
+                conn.execute(text("ALTER TABLE products ADD COLUMN barcode VARCHAR(64)"))
+            indexes = {ix["name"] for ix in inspector.get_indexes("products")}
+            if "uq_products_shop_barcode" not in indexes:
+                conn.execute(
+                    text(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS uq_products_shop_barcode "
+                        "ON products (shop_id, barcode) "
+                        "WHERE barcode IS NOT NULL AND barcode != ''"
+                    )
+                )
 
         if "storefront_themes" not in tables:
             if dialect == "sqlite":
@@ -116,3 +137,21 @@ def run_migrations(engine: Engine) -> None:
                 conn.execute(text("ALTER TABLE orders ADD COLUMN discount_amount NUMERIC(10,2) DEFAULT 0"))
             if "coupon_code" not in cols:
                 conn.execute(text("ALTER TABLE orders ADD COLUMN coupon_code VARCHAR(40)"))
+            if "tax_amount" not in cols:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN tax_amount NUMERIC(10,2) DEFAULT 0"))
+            if "round_off" not in cols:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN round_off NUMERIC(10,2) DEFAULT 0"))
+            if "channel" not in cols:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN channel VARCHAR(20) DEFAULT 'online'"))
+
+        if "shops" in tables:
+            shop_cols = {c["name"] for c in inspector.get_columns("shops")}
+            if "shop_mode" not in shop_cols:
+                conn.execute(text("ALTER TABLE shops ADD COLUMN shop_mode VARCHAR(20) DEFAULT 'both'"))
+            if "gst_enabled" not in shop_cols:
+                if dialect == "sqlite":
+                    conn.execute(text("ALTER TABLE shops ADD COLUMN gst_enabled BOOLEAN DEFAULT 0"))
+                else:
+                    conn.execute(text("ALTER TABLE shops ADD COLUMN gst_enabled BOOLEAN DEFAULT FALSE"))
+            if "gst_rate" not in shop_cols:
+                conn.execute(text("ALTER TABLE shops ADD COLUMN gst_rate NUMERIC(5,2) DEFAULT 18"))

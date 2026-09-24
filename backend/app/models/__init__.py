@@ -145,6 +145,10 @@ class Shop(Base):
     custom_theme_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     theme_variables: Mapped[list] = mapped_column(JSON, default=list)
     theme_config: Mapped[dict] = mapped_column(JSON, default=dict)
+    gst_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    gst_rate: Mapped[float] = mapped_column(Numeric(5, 2), default=18)
+    # billing = POS only; commerce = online store; both = full
+    shop_mode: Mapped[str] = mapped_column(String(20), default="both")
     created_by_id: Mapped[Optional[int]] = mapped_column(
         ForeignKey("platform_users.id"), nullable=True
     )
@@ -269,6 +273,7 @@ class Category(Base):
 
 class Product(Base):
     __tablename__ = "products"
+    __table_args__ = (UniqueConstraint("shop_id", "barcode"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     shop_id: Mapped[int] = mapped_column(ForeignKey("shops.id", ondelete="CASCADE"), index=True)
@@ -277,8 +282,10 @@ class Product(Base):
     )
     name: Mapped[str] = mapped_column(String(200))
     slug: Mapped[str] = mapped_column(String(220), index=True)
+    barcode: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # New barcode/stock products stay off storefront until the owner enables them
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -368,8 +375,11 @@ class Order(Base):
     payment_provider: Mapped[PaymentProvider] = mapped_column(
         Enum(PaymentProvider), default=PaymentProvider.cod
     )
+    channel: Mapped[str] = mapped_column(String(20), default="online")  # online | pos
     subtotal: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     discount_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    tax_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
+    round_off: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     coupon_code: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
     total: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
     shipping_address: Mapped[dict] = mapped_column(JSON, default=dict)

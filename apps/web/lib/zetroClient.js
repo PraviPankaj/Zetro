@@ -145,10 +145,13 @@ export function createClient({
         request("/register/otp/request", { method: "POST", body: { phone } }),
       verifyOtp: (phone, otp) =>
         request("/register/otp/verify", { method: "POST", body: { phone, otp } }),
-      createShop: (registrationToken, { name, slug, logo }) => {
+      firebase: (id_token) =>
+        request("/register/firebase", { method: "POST", body: { id_token } }),
+      createShop: (registrationToken, { name, slug, logo, shop_mode }) => {
         const formData = new FormData();
         formData.append("name", name);
         if (slug) formData.append("slug", slug);
+        if (shop_mode) formData.append("shop_mode", shop_mode);
         if (logo) formData.append("logo", logo);
         return request("/register/shop", { method: "POST", formData, token: registrationToken });
       },
@@ -188,12 +191,22 @@ export function createClient({
           method: "POST",
           body: { phone, otp, name },
         }),
+      staffFirebaseLogin: (id_token, name) =>
+        request(`/shops/${slug}/auth/firebase`, {
+          method: "POST",
+          body: { id_token, name },
+        }),
       customerOtpRequest: (phone) =>
         request(`/shops/${slug}/customer/auth/otp/request`, { method: "POST", body: { phone } }),
       customerOtpVerify: (phone, otp, name) =>
         request(`/shops/${slug}/customer/auth/otp/verify`, {
           method: "POST",
           body: { phone, otp, name },
+        }),
+      customerFirebaseLogin: (id_token, name) =>
+        request(`/shops/${slug}/customer/auth/firebase`, {
+          method: "POST",
+          body: { id_token, name },
         }),
       customerMe: (token) => request(`/shops/${slug}/customer/me`, { token }),
       adminMe: (token) => request(`/shops/${slug}/admin/me`, { token }),
@@ -238,6 +251,20 @@ export function createClient({
             body: { updates },
             token,
           }),
+      },
+      barcode: {
+        lookup: (barcode, token) =>
+          request(`/shops/${slug}/admin/barcode/lookup?barcode=${encodeURIComponent(barcode)}`, {
+            token,
+          }),
+        stockIn: (payload, token) =>
+          request(`/shops/${slug}/admin/barcode/stock-in`, { method: "POST", body: payload, token }),
+      },
+      billing: {
+        preview: (payload, token) =>
+          request(`/shops/${slug}/admin/billing/preview`, { method: "POST", body: payload, token }),
+        create: (payload, token) =>
+          request(`/shops/${slug}/admin/billing`, { method: "POST", body: payload, token }),
       },
       exportOrders: async (token) => {
         const res = await fetch(`${api}/shops/${slug}/admin/orders/export`, {
