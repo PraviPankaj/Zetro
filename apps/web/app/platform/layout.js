@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import AdminPageLoading from "../../components/admin/AdminPageLoading";
 import AdminShell from "../../components/admin/AdminShell";
 import { api, clearToken, getToken } from "../../lib/api";
 
@@ -25,6 +26,7 @@ export default function PlatformLayout({ children }) {
   const pathname = usePathname();
   const router = useRouter();
   const [ready, setReady] = useState(false);
+  const meOk = useRef(false);
 
   useEffect(() => {
     if (pathname === "/platform/login") {
@@ -36,14 +38,30 @@ export default function PlatformLayout({ children }) {
       router.replace("/platform/login");
       return;
     }
+
+    if (meOk.current) {
+      setReady(true);
+      return;
+    }
+
+    let cancelled = false;
     api.platform
       .me(token)
-      .then(() => setReady(true))
-      .catch(() => router.replace("/platform/login"));
+      .then(() => {
+        if (cancelled) return;
+        meOk.current = true;
+        setReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) router.replace("/platform/login");
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [pathname, router]);
 
   if (pathname === "/platform/login") return children;
-  if (!ready) return <div className="p-6">Loading…</div>;
+  if (!ready) return <AdminPageLoading label="Opening platform…" />;
 
   return (
     <AdminShell
@@ -51,7 +69,10 @@ export default function PlatformLayout({ children }) {
       brand="Zetro"
       basePath="/platform"
       sections={sections}
-      onLogout={() => clearToken("platform")}
+      onLogout={() => {
+        meOk.current = false;
+        clearToken("platform");
+      }}
     >
       {children}
     </AdminShell>

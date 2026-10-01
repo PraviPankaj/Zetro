@@ -3,46 +3,44 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import StockManager from "../../../../../components/admin/StockManager";
+import BarcodeGenerator from "../../../../../components/admin/BarcodeGenerator";
 import { api, getToken } from "../../../../../lib/api";
-import { createPlatformCatalogApi } from "../../../../../lib/catalogApi";
+import { createPlatformBarcodeApi } from "../../../../../lib/catalogApi";
 
-export default function PlatformShopStockPage() {
+export default function PlatformShopBarcodesPage() {
   const { shopId } = useParams();
   const [shop, setShop] = useState(null);
-  const catalogApi = useMemo(() => createPlatformCatalogApi(shopId), [shopId]);
+  const barcodeApi = useMemo(() => createPlatformBarcodeApi(shopId), [shopId]);
 
   useEffect(() => {
-    api.platform.shops.get(Number(shopId), getToken("platform")).then(setShop);
+    api.platform.shops.get(Number(shopId), getToken("platform")).then(setShop).catch(() => {});
   }, [shopId]);
 
   return (
-    <StockManager
-      catalogApi={catalogApi}
-      title={`${shop?.name || "Shop"} — Stock & catalog`}
+    <BarcodeGenerator
+      barcodeApi={barcodeApi}
+      title={`${shop?.name || "Shop"} — Barcode generator`}
       subtitle={
         shop?.slug ? (
           <>
-            Manage products and categories for{" "}
+            Generate and print price labels for{" "}
             <Link href={`/${shop.slug}`} target="_blank">
               /{shop.slug}
             </Link>
+            . Printing adds the label count to the shop&apos;s stock.
           </>
         ) : null
       }
-      showThemePicker
-      currentTheme={shop?.storefront_theme || "playful"}
-      onThemeChange={(themeId) => setShop((s) => (s ? { ...s, storefront_theme: themeId } : s))}
       headerActions={
         <div className="d-flex gap-2">
-          <Link href={`/platform/shops/${shopId}/barcodes`} className="btn btn-outline-primary">
-            Barcode labels
+          <Link href={`/platform/shops/${shopId}/stock`} className="btn btn-outline-primary">
+            Stock &amp; catalog
           </Link>
           <Link href={`/platform/shops/${shopId}/settings`} className="btn btn-outline-secondary">
             GST &amp; settings
           </Link>
           <Link href={`/platform/shops/${shopId}/reports`} className="btn btn-outline-secondary">
-            View reports
+            Reports
           </Link>
           <Link href="/platform/shops" className="btn btn-outline-secondary">
             All shops

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Alert, Button, Card, Col, Form, Nav, Row, Tab } from "react-bootstrap";
 import { api } from "../../../../lib/api";
 import { createShopCatalogApi } from "../../../../lib/catalogApi";
+import GstSettingsForm from "../../../../components/admin/GstSettingsForm";
 
 export default function ShopSettingsPage() {
   const { slug } = useParams();
@@ -18,7 +19,7 @@ export default function ShopSettingsPage() {
   const [saving, setSaving] = useState(false);
   const [seo, setSeo] = useState({ meta_title: "", meta_description: "" });
   const [blocks, setBlocks] = useState([]);
-  const [gst, setGst] = useState({ gst_enabled: false, gst_rate: 18 });
+  const [gst, setGst] = useState({ gst_enabled: false, gst_rate: 18, gst_rates: [] });
 
   useEffect(() => {
     api.shop(slug).info().then((info) => {
@@ -36,6 +37,7 @@ export default function ShopSettingsPage() {
       setGst({
         gst_enabled: !!info.gst_enabled,
         gst_rate: Number(info.gst_rate ?? 18),
+        gst_rates: Array.isArray(info.gst_rates) ? info.gst_rates.map(Number) : [],
       });
     });
   }, [slug]);
@@ -68,26 +70,16 @@ export default function ShopSettingsPage() {
     }
   }
 
-  async function saveGst(e) {
-    e.preventDefault();
-    setSaving(true);
+  async function saveGst(payload) {
     setError("");
-    setMessage("");
-    try {
-      const result = await catalogApi.updateSettings({
-        gst_enabled: gst.gst_enabled,
-        gst_rate: Number(gst.gst_rate) || 0,
-      });
-      setGst({
-        gst_enabled: !!result.gst_enabled,
-        gst_rate: Number(result.gst_rate ?? gst.gst_rate),
-      });
-      setMessage("GST settings saved");
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setSaving(false);
-    }
+    const result = await catalogApi.updateSettings(payload);
+    const next = {
+      gst_enabled: !!result.gst_enabled,
+      gst_rate: Number(result.gst_rate ?? payload.gst_rate),
+      gst_rates: Array.isArray(result.gst_rates) ? result.gst_rates.map(Number) : payload.gst_rates,
+    };
+    setGst(next);
+    return next;
   }
 
   function addBlock() {
@@ -356,37 +348,7 @@ export default function ShopSettingsPage() {
                 </Form>
               </Tab.Pane>
               <Tab.Pane eventKey="gst">
-                <Form onSubmit={saveGst}>
-                  <p className="text-muted">
-                    Control GST on in-shop billing. Default is off. Online checkout is unchanged.
-                  </p>
-                  <Form.Check
-                    type="switch"
-                    className="mb-3"
-                    id="gst-enabled"
-                    label="Enable GST on shop bills"
-                    checked={!!gst.gst_enabled}
-                    onChange={(e) => setGst({ ...gst, gst_enabled: e.target.checked })}
-                  />
-                  <Form.Group className="mb-3" style={{ maxWidth: 200 }}>
-                    <Form.Label>GST rate (%)</Form.Label>
-                    <Form.Control
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.01}
-                      value={gst.gst_rate}
-                      disabled={!gst.gst_enabled}
-                      onChange={(e) => setGst({ ...gst, gst_rate: e.target.value })}
-                    />
-                  </Form.Group>
-                  <p className="small text-muted">
-                    Bills always round to the nearest rupee. GST applies only when enabled here.
-                  </p>
-                  <Button type="submit" disabled={saving}>
-                    {saving ? "Saving…" : "Save GST settings"}
-                  </Button>
-                </Form>
+                <GstSettingsForm value={gst} onSave={saveGst} />
               </Tab.Pane>
             </Tab.Content>
           </Card.Body>

@@ -8,11 +8,15 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_shop_user
 from app.db.session import get_db
 from app.schemas import (
+    BarcodeBatchCreate,
+    BarcodeBatchOut,
+    BarcodeBatchUpdate,
     BarcodeStockIn,
     OrderOut,
     PosBillCreate,
     PosBillPreview,
     ProductOut,
+    ProductSearchOut,
 )
 from app.services import catalog as catalog_service
 from app.services import retail as retail_service
@@ -43,6 +47,8 @@ def _order_out(order) -> OrderOut:
                 "quantity": i.quantity,
                 "unit_price": float(i.unit_price),
                 "line_total": float(i.line_total),
+                "gst_rate": float(i.gst_rate) if i.gst_rate is not None else None,
+                "tax_amount": float(i.tax_amount or 0),
             }
             for i in order.items
         ],
@@ -72,6 +78,85 @@ def stock_in_barcode(
 ):
     shop, _ = ctx
     return retail_service.stock_in_by_barcode(db, shop, body)
+
+
+@router.get("/admin/products/search", response_model=list[ProductSearchOut])
+def search_products(
+    slug: str,
+    q: str = Query(..., min_length=1),
+    limit: int = Query(20, ge=1, le=50),
+    db: Session = Depends(get_db),
+    ctx=Depends(require_shop_user),
+):
+    shop, _ = ctx
+    return retail_service.search_products(db, shop.id, q, limit=limit)
+
+
+@router.get("/admin/barcode/batches", response_model=list[BarcodeBatchOut])
+def list_barcode_batches(
+    slug: str,
+    limit: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    ctx=Depends(require_shop_user),
+):
+    shop, _ = ctx
+    return retail_service.list_barcode_batches(db, shop.id, limit=limit)
+
+
+@router.post("/admin/barcode/batches", response_model=BarcodeBatchOut)
+def create_barcode_batch(
+    slug: str,
+    body: BarcodeBatchCreate,
+    db: Session = Depends(get_db),
+    ctx=Depends(require_shop_user),
+):
+    shop, _ = ctx
+    return retail_service.create_barcode_batch(db, shop, body)
+
+
+@router.get("/admin/barcode/batches/{batch_id}", response_model=BarcodeBatchOut)
+def get_barcode_batch(
+    slug: str,
+    batch_id: int,
+    db: Session = Depends(get_db),
+    ctx=Depends(require_shop_user),
+):
+    shop, _ = ctx
+    return retail_service.get_barcode_batch(db, shop.id, batch_id)
+
+
+@router.patch("/admin/barcode/batches/{batch_id}", response_model=BarcodeBatchOut)
+def update_barcode_batch(
+    slug: str,
+    batch_id: int,
+    body: BarcodeBatchUpdate,
+    db: Session = Depends(get_db),
+    ctx=Depends(require_shop_user),
+):
+    shop, _ = ctx
+    return retail_service.update_barcode_batch(db, shop, batch_id, body)
+
+
+@router.post("/admin/barcode/batches/{batch_id}/print", response_model=BarcodeBatchOut)
+def print_barcode_batch(
+    slug: str,
+    batch_id: int,
+    db: Session = Depends(get_db),
+    ctx=Depends(require_shop_user),
+):
+    shop, _ = ctx
+    return retail_service.print_barcode_batch(db, shop, batch_id)
+
+
+@router.post("/admin/barcode/batches/{batch_id}/cancel", response_model=BarcodeBatchOut)
+def cancel_barcode_batch(
+    slug: str,
+    batch_id: int,
+    db: Session = Depends(get_db),
+    ctx=Depends(require_shop_user),
+):
+    shop, _ = ctx
+    return retail_service.cancel_barcode_batch(db, shop, batch_id)
 
 
 @router.post("/admin/billing/preview", response_model=PosBillPreview)

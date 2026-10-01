@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Alert, Button, Card, Col, Form, Modal, Row, Table } from "react-bootstrap";
+import GstRateSelect, { formatRate, gstOptionsFromShop } from "./GstRateSelect";
 import ThemePicker from "./ThemePicker";
 
 const emptyForm = {
@@ -12,6 +13,7 @@ const emptyForm = {
   price: "",
   stock: "10",
   sku: "",
+  gst_rate: null,
   categoryIds: [],
   is_active: false,
 };
@@ -146,6 +148,7 @@ export default function StockManager({
   const [categoryFilter, setCategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter);
   const [themeSaving, setThemeSaving] = useState(false);
+  const [gst, setGst] = useState(null);
 
   function load() {
     catalogApi.listProducts().then(setProducts);
@@ -154,6 +157,13 @@ export default function StockManager({
 
   useEffect(() => {
     load();
+    if (catalogApi.shopInfo) {
+      catalogApi
+        .shopInfo()
+        .then((info) => setGst(gstOptionsFromShop(info)))
+        .catch(() => setGst(null));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [catalogApi]);
 
   async function uploadAllImages(productId, fileList) {
@@ -179,6 +189,7 @@ export default function StockManager({
         slug: form.slug || form.name.toLowerCase().replace(/\s+/g, "-"),
         description: form.description,
         barcode: form.barcode?.trim() || null,
+        gst_rate: form.gst_rate === null || form.gst_rate === "" ? null : Number(form.gst_rate),
         category_ids: form.categoryIds,
         is_active: false,
         variants: [
@@ -211,6 +222,7 @@ export default function StockManager({
       slug: product.slug || "",
       description: product.description || "",
       barcode: product.barcode || "",
+      gst_rate: product.gst_rate ?? null,
       price: variant?.price ?? "",
       stock: variant?.stock ?? 0,
       sku: variant?.sku || "",
@@ -234,6 +246,7 @@ export default function StockManager({
         slug: editForm.slug,
         description: editForm.description,
         barcode: editForm.barcode?.trim() || null,
+        gst_rate: editForm.gst_rate === null || editForm.gst_rate === "" ? null : Number(editForm.gst_rate),
         is_active: editForm.is_active,
         category_ids: editForm.categoryIds,
         price: Number(editForm.price),
@@ -425,6 +438,7 @@ export default function StockManager({
               <th>Product</th>
               <th>Categories</th>
               <th>Price</th>
+              <th>GST</th>
               <th>Stock</th>
               <th className="text-center">Images</th>
               <th>Actions</th>
@@ -433,7 +447,7 @@ export default function StockManager({
           <tbody>
             {filteredProducts.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-muted text-center py-4">
+                <td colSpan={7} className="text-muted text-center py-4">
                   {products.length === 0
                     ? <>No products yet. Click <strong>Add product</strong> to get started.</>
                     : "No products match your filters."}
@@ -475,6 +489,15 @@ export default function StockManager({
                     </small>
                   </td>
                   <td className="text-nowrap">{p.variants?.[0] ? `₹${p.variants[0].price}` : "—"}</td>
+                  <td className="text-nowrap">
+                    {p.gst_rate !== null && p.gst_rate !== undefined ? (
+                      formatRate(p.gst_rate)
+                    ) : (
+                      <span className="text-muted small">
+                        default{gst ? ` ${formatRate(gst.defaultRate)}` : ""}
+                      </span>
+                    )}
+                  </td>
                   <td>{p.variants?.[0]?.stock}</td>
                   <td className="text-center">{p.images?.length || 0}</td>
                   <td className="text-nowrap">
@@ -553,14 +576,27 @@ export default function StockManager({
                 </Form.Group>
               </Col>
             </Row>
-            <Form.Group className="mb-2">
-              <Form.Label>Barcode</Form.Label>
-              <Form.Control
-                value={form.barcode}
-                onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-                placeholder="Optional — for scanner stock-in / billing"
-              />
-            </Form.Group>
+            <Row>
+              <Col md={7}>
+                <Form.Group className="mb-2">
+                  <Form.Label>Barcode</Form.Label>
+                  <Form.Control
+                    value={form.barcode}
+                    onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                    placeholder="Optional — for scanner stock-in / billing"
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={5}>
+                <div className="mb-2">
+                  <GstRateSelect
+                    value={form.gst_rate}
+                    onChange={(v) => setForm({ ...form, gst_rate: v })}
+                    gst={gst}
+                  />
+                </div>
+              </Col>
+            </Row>
             <Form.Group className="mb-2">
               <Form.Label>Categories</Form.Label>
               <CategoryPicker
@@ -700,14 +736,27 @@ export default function StockManager({
                 onChange={(e) => setEditForm({ ...editForm, sku: e.target.value })}
               />
             </Form.Group>
-            <Form.Group className="mb-2">
-              <Form.Label>Barcode</Form.Label>
-              <Form.Control
-                value={editForm.barcode || ""}
-                onChange={(e) => setEditForm({ ...editForm, barcode: e.target.value })}
-                placeholder="Scan or type barcode"
-              />
-            </Form.Group>
+            <Row>
+              <Col md={7}>
+                <Form.Group className="mb-2">
+                  <Form.Label>Barcode</Form.Label>
+                  <Form.Control
+                    value={editForm.barcode || ""}
+                    onChange={(e) => setEditForm({ ...editForm, barcode: e.target.value })}
+                    placeholder="Scan or type barcode"
+                  />
+                </Form.Group>
+              </Col>
+              <Col md={5}>
+                <div className="mb-2">
+                  <GstRateSelect
+                    value={editForm.gst_rate}
+                    onChange={(v) => setEditForm({ ...editForm, gst_rate: v })}
+                    gst={gst}
+                  />
+                </div>
+              </Col>
+            </Row>
             <Form.Group className="mb-2">
               <Form.Label>Description</Form.Label>
               <Form.Control

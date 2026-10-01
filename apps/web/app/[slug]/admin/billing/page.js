@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { Alert, Button, Card, Col, Form, Row, Table } from "react-bootstrap";
+import { Alert, Button, Card, Col, Form, ListGroup, Row, Table } from "react-bootstrap";
 import { api, getToken } from "../../../../lib/api";
 import { printBillReceipt } from "../../../../lib/printBillReceipt";
 
@@ -10,11 +10,18 @@ function money(value) {
   return `₹${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }
 
+/** Hardware scanners send digit-heavy codes; names are treated as search. */
+function looksLikeBarcode(value) {
+  const v = String(value || "").trim();
+  if (v.length < 6) return false;
+  return /^[0-9A-Za-z\-]+$/.test(v) && /[0-9]/.test(v) && !/\s/.test(v);
+}
+
 export default function BillingPage() {
   const { slug } = useParams();
   const inputRef = useRef(null);
   const [shop, setShop] = useState(null);
-  const [barcode, setBarcode] = useState("");
+  const [query, setQuery] = useState("");
   const [lines, setLines] = useState([]);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -25,10 +32,154 @@ export default function BillingPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const searchTimer = useRef(null);
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [highlight, setHighlight] = useState(0);
+
   useEffect(() => {
     api.shop(slug).info().then(setShop);
     inputRef.current?.focus();
   }, [slug]);
+
+  useEffect(() => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    const q = query.trim();
+    if (q.length < 1) {
+      setResults([]);
+      setShowResults(false);
+      return;
+    }
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const rows = await api.shop(slug).productSearch(q, getToken("shop", slug));
+        setResults(rows || []);
+        setHighlight(0);
+        setShowResults(true);
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 200);
+    return () => searchTimer.current && clearTimeout(searchTimer.current);
+  }, [query, slug]);
+
+  function addLine({ variant_id, product_name, barcode: code, unit_price, stock }) {
+    setLines((prev) => {
+      const existing = prev.find((l) => l.variant_id === variant_id);
+      if (existing) {
+        return prev.map((l) => (l.variant_id === variant_id ? { ...l, quantity: l.quantity + 1 } : l));
+      }
+      return [
+        ...prev,
+        { variant_id, product_name, barcode: code, unit_price: Number(unit_price), quantity: 1, stock: Number(stock) },
+      ];
+    });
+  }
+
+  function clearQuery() {
+    setQuery("");
+    setResults([]);
+    setShowResults(false);
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }
+
+  function addFromSearch(p) {
+    if (!p) return;
+    if (Number(p.stock) <= 0) {
+      setError(`“${p.name}” is out of stock (0). Add stock under Barcode stock or the Barcode generator first.`);
+    } else {
+      setError("");
+    }
+    addLine({
+      variant_id: p.variant_id,
+      product_name: p.name,
+      barcode: p.barcode,
+      unit_price: p.price,
+      stock: p.stock,
+    });
+    clearQuery();
+  }
+
+  async function addByBarcodeLookup(code) {
+    const product = await api.shop(slug).barcode.lookup(code, getToken("shop", slug));
+    if (!product) return false;
+    const variant = product.variants?.[0];
+    if (!variant) {
+      setError("Product has no sellable variant");
+      return true;
+    }
+    setError("");
+    addLine({
+      variant_id: variant.id,
+      product_name: product.name,
+      barcode: product.barcode,
+      unit_price: variant.price,
+      stock: variant.stock,
+    });
+    clearQuery();
+    return true;
+  }
+
+  async function addProduct(e) {
+    e?.preventDefault?.();
+    const code = query.trim();
+    if (!code || busy) return;
+
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const found = await addByBarcodeLookup(code);
+      if (found) return;
+
+      if (results.length) {
+        addFromSearch(results[highlight] || results[0]);
+        return;
+      }
+
+      // Search may not have returned yet (scanner Enter is fast) — fetch once
+      const rows = await api.shop(slug).productSearch(code, getToken("shop", slug));
+      if (rows?.length === 1) {
+        addFromSearch(rows[0]);
+        return;
+      }
+      if (rows?.length > 1) {
+        setResults(rows);
+        setHighlight(0);
+        setShowResults(true);
+        setError("Several products match — pick one from the list.");
+        return;
+      }
+      setError(`No product for “${code}”. Try another barcode or name.`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function onQueryKeyDown(e) {
+    if (e.key === "Escape") {
+      setShowResults(false);
+      return;
+    }
+    if (!showResults || !results.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlight((h) => Math.min(results.length - 1, h + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight((h) => Math.max(0, h - 1));
+    } else if (e.key === "Enter" && !looksLikeBarcode(query)) {
+      // Name search: Enter adds highlighted result; barcodes still go through form submit → lookup
+      e.preventDefault();
+      addFromSearch(results[highlight]);
+    }
+  }
 
   useEffect(() => {
     if (!lines.length) {
@@ -51,52 +202,6 @@ export default function BillingPage() {
       .then(setPreview)
       .catch(() => setPreview(null));
   }, [lines, slug]);
-
-  async function addByBarcode(e) {
-    e.preventDefault();
-    const code = barcode.trim();
-    if (!code) return;
-    setBusy(true);
-    setError("");
-    setMessage("");
-    try {
-      const product = await api.shop(slug).barcode.lookup(code, getToken("shop", slug));
-      if (!product) {
-        setError(`No product for barcode ${code}. Add it under Barcode stock first.`);
-        return;
-      }
-      const variant = product.variants?.[0];
-      if (!variant) {
-        setError("Product has no sellable variant");
-        return;
-      }
-      setLines((prev) => {
-        const existing = prev.find((l) => l.variant_id === variant.id);
-        if (existing) {
-          return prev.map((l) =>
-            l.variant_id === variant.id ? { ...l, quantity: l.quantity + 1 } : l
-          );
-        }
-        return [
-          ...prev,
-          {
-            variant_id: variant.id,
-            product_name: product.name,
-            barcode: product.barcode,
-            unit_price: Number(variant.price),
-            quantity: 1,
-            stock: Number(variant.stock),
-          },
-        ];
-      });
-      setBarcode("");
-      setTimeout(() => inputRef.current?.focus(), 50);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   function updateQty(variantId, quantity) {
     const qty = Math.max(1, Number(quantity) || 1);
@@ -146,7 +251,6 @@ export default function BillingPage() {
       setCustomerPhone("");
       setNotes("");
       setMessage(`Bill ${bill.order_number} saved · ${money(bill.total)}`);
-      // Print after a short delay so React can paint; iframe print needs no pop-up
       setTimeout(() => openReceipt(bill, customerSnapshot), 100);
       inputRef.current?.focus();
     } catch (err) {
@@ -156,8 +260,15 @@ export default function BillingPage() {
     }
   }
 
+  const gstSlabs = Array.isArray(shop?.gst_rates) && shop.gst_rates.length
+    ? shop.gst_rates
+    : [Number(shop?.gst_rate || 0)];
   const gstLabel = shop?.gst_enabled
-    ? `GST on (${Number(shop.gst_rate || 0)}%)`
+    ? gstSlabs.length > 1
+      ? `GST per product (${gstSlabs.map((r) => `${Number(r)}%`).join(", ")}; default ${Number(
+          shop.gst_rate || 0,
+        )}%)`
+      : `GST on (${Number(shop.gst_rate || 0)}%)`
     : "GST off (enable in Settings)";
 
   return (
@@ -181,21 +292,60 @@ export default function BillingPage() {
         <Col lg={8}>
           <Card className="mb-3">
             <Card.Body>
-              <Form onSubmit={addByBarcode}>
-                <Form.Label>Scan product barcode</Form.Label>
-                <div className="d-flex gap-2 flex-wrap">
-                  <Form.Control
-                    ref={inputRef}
-                    value={barcode}
-                    onChange={(e) => setBarcode(e.target.value)}
-                    placeholder="Scan barcode and press Enter"
-                    autoComplete="off"
-                    style={{ maxWidth: 420, fontSize: 18 }}
-                  />
-                  <Button type="submit" disabled={busy || !barcode.trim()}>
+              <Form onSubmit={addProduct}>
+                <Form.Label>Add product</Form.Label>
+                <div className="d-flex gap-2 flex-wrap align-items-start">
+                  <div style={{ position: "relative", flex: "1 1 320px", maxWidth: 520 }}>
+                    <Form.Control
+                      ref={inputRef}
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      onKeyDown={onQueryKeyDown}
+                      onFocus={() => results.length && setShowResults(true)}
+                      onBlur={() => setTimeout(() => setShowResults(false), 150)}
+                      placeholder="Scan barcode or type product name"
+                      autoComplete="off"
+                      style={{ fontSize: 18 }}
+                    />
+                    {showResults ? (
+                      <ListGroup
+                        className="shadow position-absolute w-100"
+                        style={{ zIndex: 20, top: "100%", maxHeight: 300, overflowY: "auto" }}
+                      >
+                        {results.length ? (
+                          results.map((p, idx) => (
+                            <ListGroup.Item
+                              key={p.variant_id}
+                              action
+                              active={idx === highlight}
+                              onMouseDown={(e) => e.preventDefault()}
+                              onMouseEnter={() => setHighlight(idx)}
+                              onClick={() => addFromSearch(p)}
+                              className="d-flex justify-content-between align-items-center"
+                            >
+                              <div>
+                                <div className="fw-semibold">{p.name}</div>
+                                <div className={`small ${idx === highlight ? "" : "text-muted"}`}>
+                                  {p.barcode || "no barcode"} · stock {p.stock}
+                                  {p.stock <= 0 ? " · out of stock" : ""}
+                                </div>
+                              </div>
+                              <div className="fw-semibold">{money(p.price)}</div>
+                            </ListGroup.Item>
+                          ))
+                        ) : (
+                          <ListGroup.Item className="text-muted small">
+                            {searching ? "Searching…" : `No products match “${query}”`}
+                          </ListGroup.Item>
+                        )}
+                      </ListGroup>
+                    ) : null}
+                  </div>
+                  <Button type="submit" disabled={busy || !query.trim()}>
                     Add
                   </Button>
                 </div>
+                <Form.Text muted>Scan a barcode or type a name — Enter adds the match.</Form.Text>
               </Form>
             </Card.Body>
           </Card>
@@ -204,11 +354,12 @@ export default function BillingPage() {
             <Table responsive className="mb-0 align-middle">
               <thead>
                 <tr>
-                  <th>Item</th>
+                  <th style={{ minWidth: 180 }}>Item</th>
                   <th>Barcode</th>
                   <th>Price</th>
                   <th style={{ width: 110 }}>Qty</th>
                   <th>Line</th>
+                  {shop?.gst_enabled ? <th>GST</th> : null}
                   <th />
                 </tr>
               </thead>
@@ -220,7 +371,7 @@ export default function BillingPage() {
                         <div className="fw-semibold">{line.product_name}</div>
                         <div className="text-muted small">Stock {line.stock}</div>
                       </td>
-                      <td>{line.barcode || "—"}</td>
+                      <td className="font-monospace small">{line.barcode || "—"}</td>
                       <td>{money(line.unit_price)}</td>
                       <td>
                         <Form.Control
@@ -231,6 +382,20 @@ export default function BillingPage() {
                         />
                       </td>
                       <td>{money(line.unit_price * line.quantity)}</td>
+                      {shop?.gst_enabled ? (
+                        <td className="text-nowrap">
+                          {(() => {
+                            const pv = preview?.items?.find((i) => i.variant_id === line.variant_id);
+                            if (!pv) return <span className="text-muted">—</span>;
+                            return (
+                              <>
+                                <div>{money(pv.tax_amount)}</div>
+                                <div className="text-muted small">@ {Number(pv.gst_rate)}%</div>
+                              </>
+                            );
+                          })()}
+                        </td>
+                      ) : null}
                       <td>
                         <Button
                           size="sm"
@@ -244,8 +409,8 @@ export default function BillingPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="text-muted text-center py-4">
-                      Scan items to start a bill
+                    <td colSpan={shop?.gst_enabled ? 7 : 6} className="text-muted text-center py-4">
+                      Scan items or search a product to start a bill
                     </td>
                   </tr>
                 )}
@@ -285,10 +450,32 @@ export default function BillingPage() {
                 <span>Subtotal</span>
                 <span>{money(preview?.subtotal)}</span>
               </div>
-              <div className="d-flex justify-content-between mb-2">
-                <span>GST {preview?.gst_enabled ? `(${preview.gst_rate}%)` : ""}</span>
-                <span>{money(preview?.tax_amount)}</span>
-              </div>
+              {preview?.gst_enabled && preview?.tax_breakup?.length > 1 ? (
+                <>
+                  {preview.tax_breakup.map((row) => (
+                    <div key={row.rate} className="d-flex justify-content-between mb-1 small text-muted">
+                      <span>
+                        GST {Number(row.rate)}% on {money(row.taxable)}
+                      </span>
+                      <span>{money(row.tax)}</span>
+                    </div>
+                  ))}
+                  <div className="d-flex justify-content-between mb-2">
+                    <span>Total GST</span>
+                    <span>{money(preview?.tax_amount)}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="d-flex justify-content-between mb-2">
+                  <span>
+                    GST{" "}
+                    {preview?.gst_enabled && preview?.tax_breakup?.length === 1
+                      ? `(${Number(preview.tax_breakup[0].rate)}%)`
+                      : ""}
+                  </span>
+                  <span>{money(preview?.tax_amount)}</span>
+                </div>
+              )}
               <div className="d-flex justify-content-between mb-2">
                 <span>Round off</span>
                 <span>{money(preview?.round_off)}</span>

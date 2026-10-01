@@ -41,27 +41,49 @@ export default function PlatformShopsPage() {
                 <tr>
                   <th>Name</th>
                   <th>Storefront</th>
-                  <th>Stock</th>
-                  <th>Reports</th>
+                  <th>GST</th>
                   <th>Phone</th>
                   <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {shops.map((s) => (
                   <tr key={s.id}>
-                    <td>{s.name}</td>
+                    <td>
+                      {s.name}
+                      <small className="text-muted d-block text-capitalize">{s.shop_mode || "both"}</small>
+                    </td>
                     <td>
                       <a href={`/${s.slug}`}>/{s.slug}</a>
                     </td>
-                    <td>
-                      <Link href={`/platform/shops/${s.id}/stock`}>Manage stock</Link>
-                    </td>
-                    <td>
-                      <Link href={`/platform/shops/${s.id}/reports`}>View report</Link>
+                    <td className="small">
+                      {s.gst_enabled ? (
+                        <>
+                          On
+                          <span className="text-muted d-block">
+                            {(Array.isArray(s.gst_rates) && s.gst_rates.length
+                              ? s.gst_rates
+                              : [s.gst_rate]
+                            )
+                              .map((r) => `${Number(r)}%`)
+                              .join(", ")}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-muted">Off</span>
+                      )}
                     </td>
                     <td>{s.owner_phone}</td>
                     <td>{s.status}</td>
+                    <td className="small">
+                      <div className="d-flex flex-column gap-1">
+                        <Link href={`/platform/shops/${s.id}/stock`}>Stock &amp; catalog</Link>
+                        <Link href={`/platform/shops/${s.id}/barcodes`}>Barcode labels</Link>
+                        <Link href={`/platform/shops/${s.id}/settings`}>GST &amp; settings</Link>
+                        <Link href={`/platform/shops/${s.id}/reports`}>Reports</Link>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

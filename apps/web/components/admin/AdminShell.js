@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Menu } from "react-feather";
-import { clearToken } from "../../lib/api";
+import NavigationProgress from "./NavigationProgress";
 
 function NavItem({ item, pathname, basePath }) {
   const isBase = item.href === basePath;
@@ -33,6 +33,7 @@ export default function AdminShell({ title, basePath, items, sections, onLogout,
 
   return (
     <div id="db-wrapper" className={showMenu ? "" : "toggled"}>
+      <NavigationProgress />
       <div className="navbar-vertical navbar">
         <div className="nav-scroller">
           <Link href={basePath} className="navbar-brand">

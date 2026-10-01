@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
+import AdminPageLoading from "../../../components/admin/AdminPageLoading";
 import AdminShell from "../../../components/admin/AdminShell";
 import { api, clearToken, getToken } from "../../../lib/api";
 
@@ -9,9 +10,11 @@ function buildSections(base, mode) {
   const billingOps = {
     title: "Counter",
     items: [
-      { href: `${base}/stock-in`, label: "Barcode stock", icon: "package" },
       { href: `${base}/billing`, label: "Billing", icon: "credit-card" },
       { href: `${base}/orders`, label: "Bills & refunds", icon: "file-text" },
+      { href: `${base}/barcode-generator`, label: "Barcode generator", icon: "tag" },
+      { href: `${base}/stock-in`, label: "Barcode stock", icon: "package" },
+      { href: `${base}/products`, label: "Products & GST", icon: "shopping-bag" },
     ],
   };
   const catalog = {
@@ -66,7 +69,6 @@ function buildSections(base, mode) {
     return [general, catalog, onlineOrders, marketing, store, account];
   }
 
-  // both
   return [
     general,
     {
@@ -82,6 +84,7 @@ function buildSections(base, mode) {
       title: "Sales",
       items: [
         { href: `${base}/billing`, label: "Billing", icon: "credit-card" },
+        { href: `${base}/barcode-generator`, label: "Barcode generator", icon: "tag" },
         { href: `${base}/orders`, label: "Orders & bills", icon: "file-text" },
         { href: `${base}/customers`, label: "Customers", icon: "users" },
       ],
@@ -92,7 +95,17 @@ function buildSections(base, mode) {
   ];
 }
 
-const BILLING_ALLOWED = new Set(["", "stock-in", "billing", "orders", "settings", "plans", "login"]);
+const BILLING_ALLOWED = new Set([
+  "",
+  "stock-in",
+  "barcode-generator",
+  "billing",
+  "orders",
+  "products",
+  "settings",
+  "plans",
+  "login",
+]);
 
 export default function ShopAdminLayout({ children }) {
   const { slug } = useParams();
@@ -101,6 +114,7 @@ export default function ShopAdminLayout({ children }) {
   const [ready, setReady] = useState(false);
   const [shopName, setShopName] = useState(slug);
   const [shopMode, setShopMode] = useState("both");
+  const meCache = useRef(null);
 
   const base = `/${slug}/admin`;
   const sections = useMemo(() => buildSections(base, shopMode), [base, shopMode]);
@@ -115,27 +129,53 @@ export default function ShopAdminLayout({ children }) {
       router.replace(`${base}/login`);
       return;
     }
+
+    const cached = meCache.current?.slug === slug ? meCache.current : null;
+    if (cached) {
+      setShopName(cached.name);
+      setShopMode(cached.mode);
+      if (cached.mode === "billing") {
+        const rest = pathname.replace(base, "").replace(/^\//, "").split("/")[0] || "";
+        if (!BILLING_ALLOWED.has(rest)) {
+          router.replace(`${base}/billing`);
+          return;
+        }
+      }
+      setReady(true);
+      return;
+    }
+
+    let cancelled = false;
     api
       .shop(slug)
       .adminMe(token)
       .then((me) => {
-        setShopName(me.shop?.name || slug);
+        if (cancelled) return;
+        const name = me.shop?.name || slug;
         const mode = me.shop?.shop_mode || "both";
+        meCache.current = { slug, name, mode };
+        setShopName(name);
         setShopMode(mode);
-        setReady(true);
 
         if (mode === "billing") {
           const rest = pathname.replace(base, "").replace(/^\//, "").split("/")[0] || "";
           if (!BILLING_ALLOWED.has(rest)) {
             router.replace(`${base}/billing`);
+            return;
           }
         }
+        setReady(true);
       })
-      .catch(() => router.replace(`${base}/login`));
+      .catch(() => {
+        if (!cancelled) router.replace(`${base}/login`);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [pathname, slug, router, base]);
 
   if (pathname === `${base}/login`) return children;
-  if (!ready) return <div className="p-6">Loading…</div>;
+  if (!ready) return <AdminPageLoading label="Opening admin…" />;
 
   return (
     <AdminShell
@@ -143,7 +183,10 @@ export default function ShopAdminLayout({ children }) {
       brand={shopName}
       basePath={base}
       sections={sections}
-      onLogout={() => clearToken("shop", slug)}
+      onLogout={() => {
+        meCache.current = null;
+        clearToken("shop", slug);
+      }}
     >
       {children}
     </AdminShell>

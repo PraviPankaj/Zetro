@@ -31,6 +31,8 @@ export default function ShopAdminHome() {
   }, [slug, catalogApi]);
 
   const summary = dashboard?.summary;
+  const isBilling = me?.shop?.shop_mode === "billing";
+  const base = `/${slug}/admin`;
 
   return (
     <>
@@ -38,17 +40,31 @@ export default function ShopAdminHome() {
         <div>
           <h2 className="mb-1">{me?.shop?.name || "Dashboard"}</h2>
           <p className="text-muted mb-0">
-            Storefront at /{slug} · signed in as {me?.user?.phone}
+            {isBilling ? "Counter billing" : `Storefront at /${slug}`} · signed in as {me?.user?.phone}
           </p>
         </div>
-        <Link href={`/${slug}`} className="btn btn-outline-primary btn-sm" target="_blank">
-          View storefront
-        </Link>
+        {isBilling ? (
+          <div className="d-flex gap-2 flex-wrap">
+            <Link href={`${base}/billing`} className="btn btn-primary btn-sm">
+              New bill
+            </Link>
+            <Link href={`${base}/barcode-generator`} className="btn btn-outline-primary btn-sm">
+              Print labels
+            </Link>
+            <Link href={`${base}/stock-in`} className="btn btn-outline-secondary btn-sm">
+              Scan stock in
+            </Link>
+          </div>
+        ) : (
+          <Link href={`/${slug}`} className="btn btn-outline-primary btn-sm" target="_blank">
+            View storefront
+          </Link>
+        )}
       </div>
 
       {!sub ? (
         <Alert variant="warning" className="mb-4">
-          No active plan. <Link href={`/${slug}/admin/plans`}>Choose a plan</Link> to add stock.
+          No active plan. <Link href={`${base}/plans`}>Choose a plan</Link> to add stock.
         </Alert>
       ) : (
         <Alert variant="success" className="mb-4">
@@ -61,13 +77,26 @@ export default function ShopAdminHome() {
           <KpiCard label="Total Revenue" value={money(summary?.total_revenue)} variant="success" icon="₹" />
         </Col>
         <Col sm={6} lg={3}>
-          <KpiCard label="Total Orders" value={summary?.total_orders ?? "—"} variant="info" icon="📦" />
+          <KpiCard
+            label={isBilling ? "Total Bills" : "Total Orders"}
+            value={summary?.total_orders ?? "—"}
+            variant="info"
+            icon="📦"
+          />
         </Col>
         <Col sm={6} lg={3}>
           <KpiCard
             label="Products"
-            value={summary ? `${summary.active_products}/${summary.products_count}` : "—"}
-            sub={`${summary?.total_stock_units ?? 0} stock units`}
+            value={
+              summary
+                ? isBilling
+                  ? summary.products_count
+                  : `${summary.active_products}/${summary.products_count}`
+                : "—"
+            }
+            sub={`${summary?.total_stock_units ?? 0} stock units${
+              !isBilling && summary ? " · active/total" : ""
+            }`}
             variant="default"
             icon="🏷"
           />
@@ -86,7 +115,7 @@ export default function ShopAdminHome() {
       <Row className="g-4 mb-4">
         <Col lg={6}>
           <Card className="h-100 admin-table-card">
-            <Card.Header>Orders by status</Card.Header>
+            <Card.Header>{isBilling ? "Bills by status" : "Orders by status"}</Card.Header>
             <Card.Body>
               <BarChart data={dashboard?.orders_by_status} />
             </Card.Body>
@@ -106,15 +135,15 @@ export default function ShopAdminHome() {
         <Col lg={7}>
           <Card className="admin-table-card">
             <Card.Header className="d-flex justify-content-between align-items-center">
-              Recent orders
-              <Link href={`/${slug}/admin/orders`} className="btn btn-sm btn-outline-primary">
+              {isBilling ? "Recent bills" : "Recent orders"}
+              <Link href={`${base}/orders`} className="btn btn-sm btn-outline-primary">
                 View all
               </Link>
             </Card.Header>
             <Table responsive className="mb-0 text-nowrap align-middle">
               <thead>
                 <tr>
-                  <th>Order</th>
+                  <th>{isBilling ? "Bill" : "Order"}</th>
                   <th>Customer</th>
                   <th>Total</th>
                   <th>Status</th>
@@ -137,7 +166,7 @@ export default function ShopAdminHome() {
                 ) : (
                   <tr>
                     <td colSpan={5} className="text-muted text-center py-4">
-                      No orders yet
+                      {isBilling ? "No bills yet" : "No orders yet"}
                     </td>
                   </tr>
                 )}

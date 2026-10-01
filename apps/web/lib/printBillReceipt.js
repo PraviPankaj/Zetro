@@ -45,10 +45,36 @@ export function buildBillReceiptHtml({ shop, bill, customerName, customerPhone, 
     )
     .join("");
 
-  const gstRow =
-    Number(bill?.tax_amount) > 0
-      ? `<div class="row"><span>GST</span><span>${money(bill.tax_amount)}</span></div>`
-      : `<div class="row muted"><span>GST</span><span>Nil</span></div>`;
+  // Group tax by rate from the saved line items (multi-slab shops)
+  const byRate = new Map();
+  for (const item of items) {
+    const tax = Number(item.tax_amount || 0);
+    if (!tax) continue;
+    const rate = Number(item.gst_rate || 0);
+    const slot = byRate.get(rate) || { taxable: 0, tax: 0 };
+    slot.taxable += Number(item.line_total || 0);
+    slot.tax += tax;
+    byRate.set(rate, slot);
+  }
+  const rates = [...byRate.keys()].sort((a, b) => a - b);
+
+  let gstRow;
+  if (Number(bill?.tax_amount) > 0 && rates.length > 1) {
+    gstRow =
+      rates
+        .map(
+          (rate) =>
+            `<div class="row muted"><span>GST ${rate}% on ${money(byRate.get(rate).taxable)}</span><span>${money(
+              byRate.get(rate).tax
+            )}</span></div>`
+        )
+        .join("") + `<div class="row"><span>Total GST</span><span>${money(bill.tax_amount)}</span></div>`;
+  } else if (Number(bill?.tax_amount) > 0) {
+    const label = rates.length === 1 ? `GST ${rates[0]}%` : "GST";
+    gstRow = `<div class="row"><span>${label}</span><span>${money(bill.tax_amount)}</span></div>`;
+  } else {
+    gstRow = `<div class="row muted"><span>GST</span><span>Nil</span></div>`;
+  }
 
   return `<!DOCTYPE html>
 <html>

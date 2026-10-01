@@ -20,6 +20,39 @@ export function createShopCatalogApi(slug) {
     uploadLogo: (file) => api.shop(slug).uploadLogo(file, token()),
     dashboard: () => api.shop(slug).dashboard(token()),
     listThemes: () => api.shop(slug).themes(),
+    shopInfo: () => api.shop(slug).info(),
+  };
+}
+
+/** Barcode generator API — same surface for shop admin and platform admin. */
+export function createShopBarcodeApi(slug) {
+  const token = () => getToken("shop", slug);
+  const b = () => api.shop(slug).barcode.batches;
+  return {
+    shopInfo: () => api.shop(slug).info(),
+    search: (q) => api.shop(slug).productSearch(q, token()),
+    list: () => b().list(token()),
+    get: (id) => b().get(id, token()),
+    create: (payload) => b().create(payload, token()),
+    update: (id, payload) => b().update(id, payload, token()),
+    print: (id) => b().print(id, token()),
+    cancel: (id) => b().cancel(id, token()),
+  };
+}
+
+export function createPlatformBarcodeApi(shopId) {
+  const id = Number(shopId);
+  const token = () => getToken("platform");
+  const b = () => api.platform.shops.barcodeBatches;
+  return {
+    shopInfo: () => api.platform.shops.get(id, token()),
+    search: (q) => api.platform.shops.productSearch(id, q, token()),
+    list: () => b().list(id, token()),
+    get: (batchId) => b().get(id, batchId, token()),
+    create: (payload) => b().create(id, payload, token()),
+    update: (batchId, payload) => b().update(id, batchId, payload, token()),
+    print: (batchId) => b().print(id, batchId, token()),
+    cancel: (batchId) => b().cancel(id, batchId, token()),
   };
 }
 
@@ -43,5 +76,6 @@ export function createPlatformCatalogApi(shopId) {
     deleteCategory: (categoryId) => api.platform.shops.deleteCategory(id, categoryId, token()),
     updateSettings: (payload) => api.platform.shops.updateSettings(id, payload, token()),
     listThemes: () => api.platform.themes.list(token()),
+    shopInfo: () => api.platform.shops.get(id, token()),
   };
 }

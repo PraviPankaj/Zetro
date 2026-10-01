@@ -61,6 +61,7 @@ def serialize_product(product: Product) -> ProductOut:
         name=product.name,
         slug=product.slug,
         barcode=product.barcode,
+        gst_rate=float(product.gst_rate) if product.gst_rate is not None else None,
         description=product.description,
         category_id=product.category_id,
         categories=[CategoryBrief.model_validate(c) for c in (product.categories or [])],
@@ -170,6 +171,7 @@ def create_product(db: Session, shop: Shop, body: ProductCreate) -> ProductOut:
         name=body.name,
         slug=body.slug,
         barcode=barcode,
+        gst_rate=body.gst_rate,
         description=body.description,
         category_id=category_ids[0] if category_ids else None,
         is_active=body.is_active,
@@ -214,7 +216,7 @@ def update_product(db: Session, shop: Shop, product_id: int, body: ProductUpdate
         raise HTTPException(status_code=404, detail="Product not found")
 
     data = body.model_dump(exclude_unset=True)
-    for field in ("name", "slug", "description", "is_active"):
+    for field in ("name", "slug", "description", "is_active", "gst_rate"):
         if field in data:
             setattr(product, field, data[field])
 
