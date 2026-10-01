@@ -93,6 +93,8 @@ def update_shop(
         from app.services.catalog import normalize_theme
 
         shop.storefront_theme = normalize_theme(body.storefront_theme, db)
+    if body.shop_mode is not None:
+        shop.shop_mode = body.shop_mode
     db.commit()
     db.refresh(shop)
     return shop

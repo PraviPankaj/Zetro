@@ -196,10 +196,7 @@ def update_shop_settings(
         shop.meta_description = data["meta_description"]
     if "homepage_blocks" in data and data["homepage_blocks"] is not None:
         shop.homepage_blocks = data["homepage_blocks"]
-    if "gst_enabled" in data and data["gst_enabled"] is not None:
-        shop.gst_enabled = bool(data["gst_enabled"])
-    if "gst_rate" in data and data["gst_rate"] is not None:
-        shop.gst_rate = data["gst_rate"]
+    apply_gst_settings(shop, data)
     db.commit()
     db.refresh(shop)
     return {
@@ -214,7 +211,27 @@ def update_shop_settings(
         "homepage_blocks": shop.homepage_blocks or [],
         "gst_enabled": bool(shop.gst_enabled),
         "gst_rate": float(shop.gst_rate or 0),
+        "gst_rates": gst_rates_out(shop),
     }
+
+
+def gst_rates_out(shop) -> list[float]:
+    rates = shop.gst_rates if isinstance(shop.gst_rates, list) else []
+    return [float(r) for r in rates]
+
+
+def apply_gst_settings(shop, data: dict) -> None:
+    """Shared by shop-admin and platform settings endpoints."""
+    if "gst_enabled" in data and data["gst_enabled"] is not None:
+        shop.gst_enabled = bool(data["gst_enabled"])
+    if "gst_rates" in data and data["gst_rates"] is not None:
+        shop.gst_rates = [float(r) for r in data["gst_rates"]]
+    if "gst_rate" in data and data["gst_rate"] is not None:
+        shop.gst_rate = data["gst_rate"]
+    # Keep the default rate inside the configured slabs
+    rates = gst_rates_out(shop)
+    if rates and float(shop.gst_rate or 0) not in rates:
+        shop.gst_rate = rates[0]
 
 
 @router.post("/admin/logo")
@@ -267,6 +284,8 @@ def list_orders(slug: str, db: Session = Depends(get_db), ctx=Depends(require_sh
                         "quantity": i.quantity,
                         "unit_price": float(i.unit_price),
                         "line_total": float(i.line_total),
+                        "gst_rate": float(i.gst_rate) if i.gst_rate is not None else None,
+                        "tax_amount": float(i.tax_amount or 0),
                     }
                     for i in o.items
                 ],
@@ -383,6 +402,7 @@ def shop_info(slug: str, db: Session = Depends(get_db)):
         "custom_theme_active": is_html_theme(db, shop.storefront_theme),
         "gst_enabled": bool(getattr(shop, "gst_enabled", False)),
         "gst_rate": float(getattr(shop, "gst_rate", 18) or 0),
+        "gst_rates": gst_rates_out(shop),
         "shop_mode": getattr(shop, "shop_mode", None) or "both",
     }
 
