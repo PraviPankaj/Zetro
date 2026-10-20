@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { Alert, Button, Card, Col, Form, Row } from "react-bootstrap";
 import { api, getToken } from "../../../../lib/api";
+import GstRateSelect, { formatRate, gstOptionsFromShop } from "../../../../components/admin/GstRateSelect";
 
 function money(value) {
   return `₹${Number(value || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
@@ -18,13 +19,20 @@ export default function BarcodeStockPage() {
   const [quantity, setQuantity] = useState("1");
   const [newName, setNewName] = useState("");
   const [newPrice, setNewPrice] = useState("");
+  const [newGst, setNewGst] = useState(null);
+  const [gst, setGst] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
+    api
+      .shop(slug)
+      .info()
+      .then((info) => setGst(gstOptionsFromShop(info)))
+      .catch(() => {});
+  }, [slug]);
 
   function resetScanFocus() {
     setBarcode("");
@@ -48,6 +56,7 @@ export default function BarcodeStockPage() {
         setNotFound(true);
         setNewName("");
         setNewPrice("");
+        setNewGst(null);
       }
       setBarcode(value);
     } catch (err) {
@@ -94,6 +103,7 @@ export default function BarcodeStockPage() {
           quantity: Number(quantity) || 1,
           name: newName,
           price: Number(newPrice) || 0,
+          gst_rate: newGst === null || newGst === "" ? undefined : Number(newGst),
         },
         getToken("shop", slug)
       );
@@ -173,6 +183,14 @@ export default function BarcodeStockPage() {
                 <div>{money(variant?.price)}</div>
               </Col>
               <Col md={3}>
+                <div className="text-muted small">GST</div>
+                <div>
+                  {product.gst_rate !== null && product.gst_rate !== undefined
+                    ? formatRate(product.gst_rate)
+                    : `Default${gst ? ` (${formatRate(gst.defaultRate)})` : ""}`}
+                </div>
+              </Col>
+              <Col md={3}>
                 <div className="text-muted small">SKU</div>
                 <div>{variant?.sku || "—"}</div>
               </Col>
@@ -240,6 +258,9 @@ export default function BarcodeStockPage() {
                       onChange={(e) => setQuantity(e.target.value)}
                     />
                   </Form.Group>
+                </Col>
+                <Col md={4}>
+                  <GstRateSelect value={newGst} onChange={setNewGst} gst={gst} />
                 </Col>
               </Row>
               <Button className="mt-3" type="submit" disabled={busy || !newName.trim()}>

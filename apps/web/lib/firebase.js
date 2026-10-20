@@ -36,7 +36,18 @@ export function getFirebaseAuth() {
           appId: c.appId,
           messagingSenderId: c.messagingSenderId || undefined,
         });
-  return getAuth(app);
+  const auth = getAuth(app);
+  // Dev/testing only: skip reCAPTCHA for Firebase *test phone numbers* (configured in the
+  // Firebase console). Real numbers still fail without verification, so this is safe to gate
+  // on an env flag + localhost.
+  if (
+    process.env.NEXT_PUBLIC_FIREBASE_TEST_PHONES === "true" &&
+    typeof window !== "undefined" &&
+    /^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)
+  ) {
+    auth.settings.appVerificationDisabledForTesting = true;
+  }
+  return auth;
 }
 
 /** Convert local 10-digit (or with 0/91) to E.164 for India by default. */

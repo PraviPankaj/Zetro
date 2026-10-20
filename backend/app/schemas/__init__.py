@@ -71,6 +71,16 @@ class ShopUpdate(BaseModel):
     owner_phone: Optional[str] = None
     description: Optional[str] = None
     storefront_theme: Optional[str] = None
+    shop_mode: Optional[str] = None
+
+    @field_validator("shop_mode")
+    @classmethod
+    def validate_shop_mode(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        if value not in {"billing", "commerce", "both"}:
+            raise ValueError("shop_mode must be billing, commerce, or both")
+        return value
 
 
 class ShopSettingsUpdate(BaseModel):
@@ -82,7 +92,24 @@ class ShopSettingsUpdate(BaseModel):
     meta_description: Optional[str] = None
     homepage_blocks: Optional[list[dict[str, Any]]] = None
     gst_enabled: Optional[bool] = None
+    # Default GST % (used by products without their own rate)
     gst_rate: Optional[float] = Field(default=None, ge=0, le=100)
+    # All GST slabs available to products, e.g. [0, 5, 12, 18, 28]
+    gst_rates: Optional[list[float]] = None
+
+    @field_validator("gst_rates")
+    @classmethod
+    def normalize_gst_rates(cls, value: Optional[list[float]]) -> Optional[list[float]]:
+        if value is None:
+            return None
+        cleaned: list[float] = []
+        for raw in value:
+            rate = round(float(raw), 2)
+            if rate < 0 or rate > 100:
+                raise ValueError("GST rates must be between 0 and 100")
+            if rate not in cleaned:
+                cleaned.append(rate)
+        return sorted(cleaned)
 
 
 class ShopOut(BaseModel):
@@ -95,9 +122,19 @@ class ShopOut(BaseModel):
     logo_url: Optional[str] = None
     storefront_theme: str = "playful"
     shop_mode: str = "both"
+    gst_enabled: bool = False
+    gst_rate: float = 18
+    gst_rates: list[float] = Field(default_factory=list)
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_validator("gst_rates", mode="before")
+    @classmethod
+    def normalize_out_gst_rates(cls, value: object) -> list[float]:
+        if not isinstance(value, list):
+            return []
+        return [float(v) for v in value]
 
     @field_validator("storefront_theme", mode="before")
     @classmethod
@@ -210,6 +247,8 @@ class ProductCreate(BaseModel):
     slug: str
     description: Optional[str] = None
     barcode: Optional[str] = None
+    # GST % for this product; None = shop default
+    gst_rate: Optional[float] = Field(default=None, ge=0, le=100)
     category_id: Optional[int] = None
     category_ids: list[int] = Field(default_factory=list)
     variants: list[VariantIn] = Field(default_factory=list)
@@ -231,6 +270,8 @@ class ProductUpdate(BaseModel):
     slug: Optional[str] = None
     description: Optional[str] = None
     barcode: Optional[str] = None
+    # Set to a rate to override, or explicitly null to fall back to the shop default
+    gst_rate: Optional[float] = Field(default=None, ge=0, le=100)
     category_id: Optional[int] = None
     category_ids: Optional[list[int]] = None
     is_active: Optional[bool] = None
@@ -265,6 +306,7 @@ class ProductOut(BaseModel):
     name: str
     slug: str
     barcode: Optional[str] = None
+    gst_rate: Optional[float] = None
     description: Optional[str]
     category_id: Optional[int]
     categories: list[CategoryBrief] = []
@@ -405,6 +447,54 @@ class BarcodeStockIn(BaseModel):
     name: Optional[str] = None
     price: Optional[float] = Field(default=None, ge=0)
     sku: Optional[str] = None
+    gst_rate: Optional[float] = Field(default=None, ge=0, le=100)
+
+
+class BarcodeBatchCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    price: float = Field(ge=0)
+    quantity: int = Field(ge=1, le=5000)
+    # Reuse an existing product's barcode; blank = generate a new in-store code
+    barcode: Optional[str] = None
+    # Attach to a specific existing product (from search) instead of matching by name
+    product_id: Optional[int] = None
+    # GST % to store on the product; None keeps the product's current / shop default
+    gst_rate: Optional[float] = Field(default=None, ge=0, le=100)
+
+
+class BarcodeBatchUpdate(BaseModel):
+    price: Optional[float] = Field(default=None, ge=0)
+    quantity: Optional[int] = Field(default=None, ge=1, le=5000)
+
+
+class BarcodeBatchOut(BaseModel):
+    id: int
+    product_id: int
+    variant_id: int
+    barcode: str
+    product_name: str
+    price: float
+    quantity: int
+    status: str
+    stock_applied: int
+    print_count: int
+    current_stock: int
+    current_price: float
+    gst_rate: Optional[float] = None
+    created_at: datetime
+    printed_at: Optional[datetime] = None
+    cancelled_at: Optional[datetime] = None
+
+
+class ProductSearchOut(BaseModel):
+    product_id: int
+    variant_id: int
+    name: str
+    barcode: Optional[str] = None
+    price: float
+    stock: int
+    is_active: bool
+    gst_rate: Optional[float] = None
 
 
 class PosBillItemIn(BaseModel):
@@ -428,7 +518,10 @@ class PosBillPreview(BaseModel):
     round_off: float
     total: float
     gst_enabled: bool
+    # Shop default rate (kept for backward compatibility); per-line rates are in items
     gst_rate: float
+    # Tax grouped by rate: [{"rate": 18, "taxable": 100.0, "tax": 18.0}, ...]
+    tax_breakup: list[dict[str, Any]] = []
     items: list[dict[str, Any]] = []
 
 

@@ -83,6 +83,8 @@ def run_migrations(engine: Engine) -> None:
             prod_cols = {c["name"] for c in inspector.get_columns("products")}
             if "barcode" not in prod_cols:
                 conn.execute(text("ALTER TABLE products ADD COLUMN barcode VARCHAR(64)"))
+            if "gst_rate" not in prod_cols:
+                conn.execute(text("ALTER TABLE products ADD COLUMN gst_rate NUMERIC(5,2)"))
             indexes = {ix["name"] for ix in inspector.get_indexes("products")}
             if "uq_products_shop_barcode" not in indexes:
                 conn.execute(
@@ -155,3 +157,17 @@ def run_migrations(engine: Engine) -> None:
                     conn.execute(text("ALTER TABLE shops ADD COLUMN gst_enabled BOOLEAN DEFAULT FALSE"))
             if "gst_rate" not in shop_cols:
                 conn.execute(text("ALTER TABLE shops ADD COLUMN gst_rate NUMERIC(5,2) DEFAULT 18"))
+            if "gst_rates" not in shop_cols:
+                if dialect == "sqlite":
+                    conn.execute(text("ALTER TABLE shops ADD COLUMN gst_rates JSON DEFAULT '[]'"))
+                else:
+                    conn.execute(text("ALTER TABLE shops ADD COLUMN gst_rates JSONB DEFAULT '[]'"))
+
+        if "order_items" in tables:
+            item_cols = {c["name"] for c in inspector.get_columns("order_items")}
+            if "gst_rate" not in item_cols:
+                conn.execute(text("ALTER TABLE order_items ADD COLUMN gst_rate NUMERIC(5,2)"))
+            if "tax_amount" not in item_cols:
+                conn.execute(
+                    text("ALTER TABLE order_items ADD COLUMN tax_amount NUMERIC(10,2) DEFAULT 0")
+                )

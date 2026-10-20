@@ -146,7 +146,10 @@ class Shop(Base):
     theme_variables: Mapped[list] = mapped_column(JSON, default=list)
     theme_config: Mapped[dict] = mapped_column(JSON, default=dict)
     gst_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Default GST % applied to products that don't set their own rate
     gst_rate: Mapped[float] = mapped_column(Numeric(5, 2), default=18)
+    # All GST slabs this shop uses, e.g. [0, 5, 12, 18, 28]; products pick one
+    gst_rates: Mapped[list] = mapped_column(JSON, default=list)
     # billing = POS only; commerce = online store; both = full
     shop_mode: Mapped[str] = mapped_column(String(20), default="both")
     created_by_id: Mapped[Optional[int]] = mapped_column(
@@ -284,6 +287,8 @@ class Product(Base):
     slug: Mapped[str] = mapped_column(String(220), index=True)
     barcode: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # GST % for this product; NULL = use the shop's default gst_rate
+    gst_rate: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
     # New barcode/stock products stay off storefront until the owner enables them
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -331,6 +336,43 @@ class ProductVariant(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
 
     product: Mapped[Product] = relationship(back_populates="variants")
+
+
+class BarcodeBatchStatus(str, enum.Enum):
+    draft = "draft"  # labels generated, stock not yet added
+    printed = "printed"  # labels printed, stock added
+    cancelled = "cancelled"  # batch cancelled, stock reversed if it was added
+
+
+class BarcodeBatch(Base):
+    """A run of generated barcode labels for one product.
+
+    Stock is only added when the batch is printed; cancelling a printed
+    batch reverses the stock it added.
+    """
+
+    __tablename__ = "barcode_batches"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    shop_id: Mapped[int] = mapped_column(ForeignKey("shops.id", ondelete="CASCADE"), index=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True)
+    variant_id: Mapped[int] = mapped_column(ForeignKey("product_variants.id", ondelete="CASCADE"))
+    barcode: Mapped[str] = mapped_column(String(64), index=True)
+    product_name: Mapped[str] = mapped_column(String(200))
+    price: Mapped[float] = mapped_column(Numeric(10, 2))
+    quantity: Mapped[int] = mapped_column(Integer)
+    status: Mapped[BarcodeBatchStatus] = mapped_column(
+        Enum(BarcodeBatchStatus), default=BarcodeBatchStatus.draft
+    )
+    # Units actually credited to stock for this batch (0 until printed)
+    stock_applied: Mapped[int] = mapped_column(Integer, default=0)
+    print_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    printed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancelled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    product: Mapped[Product] = relationship()
+    variant: Mapped[ProductVariant] = relationship()
 
 
 class Cart(Base):
@@ -405,6 +447,9 @@ class OrderItem(Base):
     unit_price: Mapped[float] = mapped_column(Numeric(10, 2))
     quantity: Mapped[int] = mapped_column(Integer)
     line_total: Mapped[float] = mapped_column(Numeric(10, 2))
+    # GST applied to this line at sale time (POS bills); 0/NULL when GST off
+    gst_rate: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)
+    tax_amount: Mapped[float] = mapped_column(Numeric(10, 2), default=0)
 
     order: Mapped[Order] = relationship(back_populates="items")
 

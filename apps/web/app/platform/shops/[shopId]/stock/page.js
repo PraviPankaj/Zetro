@@ -35,7 +35,13 @@ export default function PlatformShopStockPage() {
       onThemeChange={(themeId) => setShop((s) => (s ? { ...s, storefront_theme: themeId } : s))}
       headerActions={
         <div className="d-flex gap-2">
-          <Link href={`/platform/shops/${shopId}/reports`} className="btn btn-outline-primary">
+          <Link href={`/platform/shops/${shopId}/barcodes`} className="btn btn-outline-primary">
+            Barcode labels
+          </Link>
+          <Link href={`/platform/shops/${shopId}/settings`} className="btn btn-outline-secondary">
+            GST &amp; settings
+          </Link>
+          <Link href={`/platform/shops/${shopId}/reports`} className="btn btn-outline-secondary">
             View reports
           </Link>
           <Link href="/platform/shops" className="btn btn-outline-secondary">

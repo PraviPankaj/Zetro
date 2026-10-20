@@ -121,6 +121,25 @@ export function createClient({
         updateSettings: (id, payload, token) =>
           request(`/platform/shops/${id}/settings`, { method: "PATCH", body: payload, token }),
         reports: (id, token) => request(`/platform/shops/${id}/reports`, { token }),
+        productSearch: (id, q, token) =>
+          request(`/platform/shops/${id}/products/search?q=${encodeURIComponent(q)}`, { token }),
+        barcodeBatches: {
+          list: (id, token) => request(`/platform/shops/${id}/barcode/batches`, { token }),
+          get: (id, batchId, token) =>
+            request(`/platform/shops/${id}/barcode/batches/${batchId}`, { token }),
+          create: (id, payload, token) =>
+            request(`/platform/shops/${id}/barcode/batches`, { method: "POST", body: payload, token }),
+          update: (id, batchId, payload, token) =>
+            request(`/platform/shops/${id}/barcode/batches/${batchId}`, {
+              method: "PATCH",
+              body: payload,
+              token,
+            }),
+          print: (id, batchId, token) =>
+            request(`/platform/shops/${id}/barcode/batches/${batchId}/print`, { method: "POST", token }),
+          cancel: (id, batchId, token) =>
+            request(`/platform/shops/${id}/barcode/batches/${batchId}/cancel`, { method: "POST", token }),
+        },
       },
       themes: {
         list: (token) => request("/platform/themes", { token }),
@@ -259,7 +278,25 @@ export function createClient({
           }),
         stockIn: (payload, token) =>
           request(`/shops/${slug}/admin/barcode/stock-in`, { method: "POST", body: payload, token }),
+        batches: {
+          list: (token) => request(`/shops/${slug}/admin/barcode/batches`, { token }),
+          get: (id, token) => request(`/shops/${slug}/admin/barcode/batches/${id}`, { token }),
+          create: (payload, token) =>
+            request(`/shops/${slug}/admin/barcode/batches`, { method: "POST", body: payload, token }),
+          update: (id, payload, token) =>
+            request(`/shops/${slug}/admin/barcode/batches/${id}`, {
+              method: "PATCH",
+              body: payload,
+              token,
+            }),
+          print: (id, token) =>
+            request(`/shops/${slug}/admin/barcode/batches/${id}/print`, { method: "POST", token }),
+          cancel: (id, token) =>
+            request(`/shops/${slug}/admin/barcode/batches/${id}/cancel`, { method: "POST", token }),
+        },
       },
+      productSearch: (q, token) =>
+        request(`/shops/${slug}/admin/products/search?q=${encodeURIComponent(q)}`, { token }),
       billing: {
         preview: (payload, token) =>
           request(`/shops/${slug}/admin/billing/preview`, { method: "POST", body: payload, token }),

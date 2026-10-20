@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_platform_permission
+from app.api.v1.catalog import apply_gst_settings, gst_rates_out
 from app.db.session import get_db
 from app.models import PlatformUser, Shop
 from app.schemas import (
+    BarcodeBatchCreate,
+    BarcodeBatchOut,
+    BarcodeBatchUpdate,
     CategoryCreate,
     CategoryOut,
     CategoryUpdate,
@@ -15,11 +19,13 @@ from app.schemas import (
     PlatformShopReport,
     ProductCreate,
     ProductOut,
+    ProductSearchOut,
     ProductUpdate,
     ShopOut,
     ShopSettingsUpdate,
 )
 from app.services import catalog as catalog_service
+from app.services import retail as retail_service
 from app.services.reports import build_shop_dashboard, build_shop_summary
 
 router = APIRouter(prefix="/platform", tags=["platform-shop-ops"])
@@ -203,6 +209,7 @@ def update_shop_settings(
         shop.meta_description = data["meta_description"]
     if "homepage_blocks" in data and data["homepage_blocks"] is not None:
         shop.homepage_blocks = data["homepage_blocks"]
+    apply_gst_settings(shop, data)
     db.commit()
     db.refresh(shop)
     return {
@@ -214,4 +221,91 @@ def update_shop_settings(
         "meta_title": shop.meta_title,
         "meta_description": shop.meta_description,
         "homepage_blocks": shop.homepage_blocks or [],
+        "gst_enabled": bool(shop.gst_enabled),
+        "gst_rate": float(shop.gst_rate or 0),
+        "gst_rates": gst_rates_out(shop),
     }
+
+
+# ---------------------------------------------------------------------------
+# Barcode generator (platform-side mirror of the shop admin endpoints)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/shops/{shop_id}/products/search", response_model=list[ProductSearchOut])
+def platform_search_products(
+    shop_id: int,
+    q: str = Query(..., min_length=1),
+    limit: int = Query(20, ge=1, le=50),
+    _: PlatformUser = Depends(require_platform_permission("shops.view")),
+    db: Session = Depends(get_db),
+):
+    shop = _shop_or_404(db, shop_id)
+    return retail_service.search_products(db, shop.id, q, limit=limit)
+
+
+@router.get("/shops/{shop_id}/barcode/batches", response_model=list[BarcodeBatchOut])
+def platform_list_barcode_batches(
+    shop_id: int,
+    limit: int = Query(50, ge=1, le=200),
+    _: PlatformUser = Depends(require_platform_permission("shops.view")),
+    db: Session = Depends(get_db),
+):
+    shop = _shop_or_404(db, shop_id)
+    return retail_service.list_barcode_batches(db, shop.id, limit=limit)
+
+
+@router.post("/shops/{shop_id}/barcode/batches", response_model=BarcodeBatchOut)
+def platform_create_barcode_batch(
+    shop_id: int,
+    body: BarcodeBatchCreate,
+    _: PlatformUser = Depends(require_platform_permission("shops.manage")),
+    db: Session = Depends(get_db),
+):
+    shop = _shop_or_404(db, shop_id)
+    return retail_service.create_barcode_batch(db, shop, body)
+
+
+@router.get("/shops/{shop_id}/barcode/batches/{batch_id}", response_model=BarcodeBatchOut)
+def platform_get_barcode_batch(
+    shop_id: int,
+    batch_id: int,
+    _: PlatformUser = Depends(require_platform_permission("shops.view")),
+    db: Session = Depends(get_db),
+):
+    shop = _shop_or_404(db, shop_id)
+    return retail_service.get_barcode_batch(db, shop.id, batch_id)
+
+
+@router.patch("/shops/{shop_id}/barcode/batches/{batch_id}", response_model=BarcodeBatchOut)
+def platform_update_barcode_batch(
+    shop_id: int,
+    batch_id: int,
+    body: BarcodeBatchUpdate,
+    _: PlatformUser = Depends(require_platform_permission("shops.manage")),
+    db: Session = Depends(get_db),
+):
+    shop = _shop_or_404(db, shop_id)
+    return retail_service.update_barcode_batch(db, shop, batch_id, body)
+
+
+@router.post("/shops/{shop_id}/barcode/batches/{batch_id}/print", response_model=BarcodeBatchOut)
+def platform_print_barcode_batch(
+    shop_id: int,
+    batch_id: int,
+    _: PlatformUser = Depends(require_platform_permission("shops.manage")),
+    db: Session = Depends(get_db),
+):
+    shop = _shop_or_404(db, shop_id)
+    return retail_service.print_barcode_batch(db, shop, batch_id)
+
+
+@router.post("/shops/{shop_id}/barcode/batches/{batch_id}/cancel", response_model=BarcodeBatchOut)
+def platform_cancel_barcode_batch(
+    shop_id: int,
+    batch_id: int,
+    _: PlatformUser = Depends(require_platform_permission("shops.manage")),
+    db: Session = Depends(get_db),
+):
+    shop = _shop_or_404(db, shop_id)
+    return retail_service.cancel_barcode_batch(db, shop, batch_id)

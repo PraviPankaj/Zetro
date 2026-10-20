@@ -5,7 +5,7 @@ import StatusBadge from "./StatusBadge";
 
 function money(value) {
   if (value == null) return "—";
-  return `₹${Number(value).toLocaleString("en-IN")}`;
+  return `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }
 
 export default function OrderDetailModal({
@@ -20,6 +20,7 @@ export default function OrderDetailModal({
 
   const address = order.shipping_address || {};
   const isCancelled = order.status === "cancelled";
+  const hasTax = (order.items || []).some((i) => Number(i.tax_amount) > 0) || Number(order.tax_amount) > 0;
 
   return (
     <Modal show={show} onHide={onHide} size="lg" centered>
@@ -75,6 +76,7 @@ export default function OrderDetailModal({
               <th>Qty</th>
               <th>Price</th>
               <th>Total</th>
+              {hasTax ? <th>GST</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -89,9 +91,53 @@ export default function OrderDetailModal({
                 <td>{item.quantity}</td>
                 <td>{money(item.unit_price)}</td>
                 <td>{money(item.line_total)}</td>
+                {hasTax ? (
+                  <td className="text-nowrap">
+                    {Number(item.tax_amount) > 0 ? (
+                      <>
+                        {money(item.tax_amount)}{" "}
+                        <small className="text-muted">@ {Number(item.gst_rate || 0)}%</small>
+                      </>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>
+          {hasTax || Number(order.round_off) ? (
+            <tfoot>
+              <tr>
+                <td colSpan={hasTax ? 3 : 3} className="text-end text-muted small">
+                  Subtotal
+                </td>
+                <td colSpan={hasTax ? 2 : 1} className="small">
+                  {money(order.subtotal)}
+                </td>
+              </tr>
+              {hasTax ? (
+                <tr>
+                  <td colSpan={3} className="text-end text-muted small">
+                    GST
+                  </td>
+                  <td colSpan={2} className="small">
+                    {money(order.tax_amount)}
+                  </td>
+                </tr>
+              ) : null}
+              {Number(order.round_off) ? (
+                <tr>
+                  <td colSpan={hasTax ? 3 : 3} className="text-end text-muted small">
+                    Round off
+                  </td>
+                  <td colSpan={hasTax ? 2 : 1} className="small">
+                    {money(order.round_off)}
+                  </td>
+                </tr>
+              ) : null}
+            </tfoot>
+          ) : null}
         </Table>
 
         {billingMode ? (
