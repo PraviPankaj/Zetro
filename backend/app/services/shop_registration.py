@@ -5,12 +5,10 @@ import uuid
 from pathlib import Path
 from typing import Optional
 
-import aiofiles
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
 from app.db.seed import ensure_cod_gateway, subscription_window
 from app.models import (
     Shop,
@@ -21,6 +19,7 @@ from app.models import (
     SubscriptionPlan,
     SubscriptionStatus,
 )
+from app.services import media_storage
 from app.services.catalog import normalize_theme
 
 REGISTER_PURPOSE = "shop_register"
@@ -61,18 +60,11 @@ def validate_slug(slug: str) -> str:
 
 
 async def save_shop_logo(shop: Shop, file: UploadFile) -> str:
-    settings = get_settings()
     ext = Path(file.filename or "logo.png").suffix.lower()
     if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif"}:
         ext = ".png"
     filename = f"logo_{uuid.uuid4().hex[:8]}{ext}"
-    dest_dir = Path(settings.media_root) / shop.slug
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / filename
-    async with aiofiles.open(dest, "wb") as out:
-        while chunk := await file.read(1024 * 1024):
-            await out.write(chunk)
-    return f"{settings.media_url_prefix}/{shop.slug}/{filename}"
+    return await media_storage.save_upload(f"{shop.slug}/{filename}", file)
 
 
 def activate_trial(db: Session, shop_id: int) -> None:

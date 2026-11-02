@@ -2,7 +2,12 @@
 
 import { createClient } from "./zetroClient";
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Production (Vercel): empty origin → browser calls /api and /media on the same host
+// (rewritten to FastAPI). Local / explicit deploy: set NEXT_PUBLIC_API_URL.
+export const API_BASE = (
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === "production" ? "" : "http://localhost:8000")
+).replace(/\/$/, "");
 
 export function tokenKey(kind, slug) {
   if (kind === "platform") return "zetro_platform_token";

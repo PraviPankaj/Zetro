@@ -15,7 +15,8 @@ export function createClient({
   baseUrl = "http://localhost:8000",
   getToken = () => null,
 } = {}) {
-  const api = `${baseUrl.replace(/\/$/, "")}/api/v1`;
+  const origin = (baseUrl || "").replace(/\/$/, "");
+  const api = `${origin}/api/v1`;
 
   async function request(path, { method = "GET", body, token, formData, headers } = {}) {
     const auth = token ?? getToken();
@@ -56,7 +57,7 @@ export function createClient({
     mediaUrl(path) {
       if (!path) return "";
       if (path.startsWith("http")) return path;
-      return `${baseUrl.replace(/\/$/, "")}${path}`;
+      return `${origin}${path.startsWith("/") ? path : `/${path}`}`;
     },
     platform: {
       login: (username, password) =>

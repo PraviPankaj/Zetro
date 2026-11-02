@@ -72,7 +72,7 @@ On **zetro-api**, set `CORS_ORIGINS` = `https://zetro.onrender.com`.
 
 | Approach | When to use |
 |----------|-------------|
-| **Render API + Vercel web** | Production; Vercel is built for Next.js |
+| **Render API + Vercel web** | **Recommended for production** — see [DEPLOY_VERCEL.md](DEPLOY_VERCEL.md) |
 | **API only on Render** | Backend testing; UI stays on localhost |
 | **Docker single service** | Only if you must have one URL for both (not needed now) |
 | **Railway / Fly.io** | Alternative hosts; similar split or monorepo deploy |

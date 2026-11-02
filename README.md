@@ -29,7 +29,11 @@ npm run dev
 
 Optional: `docker compose up -d` for Postgres, Redis, MinIO, then set `DATABASE_URL=postgresql://zetro:zetro@localhost:5432/zetro`.
 
-## Demo
+## Deploy
+
+- **Shop UI (Vercel):** see [DEPLOY_VERCEL.md](DEPLOY_VERCEL.md) — Root Directory `apps/web`, set `API_URL` to your FastAPI host.
+- **API (Render):** see [DEPLOY_RENDER.md](DEPLOY_RENDER.md) — Python service + Postgres. Keep this if you currently use Render.
+
 
 1. Sign in at `/platform/login`
 2. Shop `abc` is seeded. Open `/abc/admin/login`, request OTP for `9999999999` (shown in the UI in development)
