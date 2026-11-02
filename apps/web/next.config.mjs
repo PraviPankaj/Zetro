@@ -10,6 +10,11 @@ const nextConfig = {
     includePaths: ["node_modules"],
   },
   images: { unoptimized: true },
+  // Edge redirect: a prerendered redirect() in app/page.js ships a 307 with no
+  // Location header on Vercel, leaving / blank.
+  async redirects() {
+    return [{ source: "/", destination: "/abc", permanent: false }];
+  },
   async rewrites() {
     return [
       { source: "/api/:path*", destination: `${backend}/api/:path*` },
