@@ -2,6 +2,9 @@
   "name": "web",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=18.18.0"
+  },
   "scripts": {
     "dev": "WATCHPACK_POLLING=true next dev -p 3001",
     "start:local": "next start -p 3001",

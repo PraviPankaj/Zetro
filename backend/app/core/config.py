@@ -1,4 +1,6 @@
 from functools import lru_cache
+import re
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -47,8 +49,17 @@ class Settings(BaseSettings):
 
     media_root: str = "./uploads"
     media_url_prefix: str = "/media"
-    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://localhost:3002"
-    frontend_url: str = ""  # e.g. https://zetro-web.onrender.com — redirects / to /abc
+    # Set by Vercel when a Blob store is connected; uploads then go to Blob instead of disk
+    blob_read_write_token: str = ""
+
+    # Create tables / run migrations / seed on boot. Disable on Vercel and run
+    # `python -m app.db.init` once per schema change instead.
+    db_init_on_startup: bool = True
+    cors_origins: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://localhost:3002,"
+        "https://*.vercel.app"
+    )
+    frontend_url: str = ""  # e.g. https://zetro.vercel.app — also added to CORS
 
     encryption_key: str = "zetro-dev-fernet-key-change-in-prod!!"  # 32+ chars padded for Fernet
 
@@ -59,7 +70,21 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        origins = [o.strip() for o in self.cors_origins.split(",") if o.strip() and "*" not in o]
+        if self.frontend_url:
+            front = self.frontend_url.strip().rstrip("/")
+            if front and front not in origins:
+                origins.append(front)
+        return origins
+
+    @property
+    def cors_origin_regex(self) -> str | None:
+        patterns: list[str] = []
+        for raw in self.cors_origins.split(","):
+            origin = raw.strip()
+            if "*" in origin:
+                patterns.append("^" + re.escape(origin).replace(r"\*", r"[^/]+") + "$")
+        return "|".join(patterns) if patterns else None
 
 
 @lru_cache

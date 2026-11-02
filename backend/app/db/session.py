@@ -1,6 +1,8 @@
+import os
 from collections.abc import Generator
 
 from sqlalchemy import create_engine, event
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.core.config import get_settings
@@ -18,7 +20,12 @@ elif database_url.startswith("postgresql://"):
     database_url = "postgresql+psycopg2://" + database_url[len("postgresql://") :]
 
 connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
-engine = create_engine(database_url, connect_args=connect_args, future=True)
+engine_kwargs = {}
+if os.environ.get("VERCEL"):
+    # Serverless instances freeze between requests; don't hold pooled connections
+    # (use the provider's pooled URL, e.g. Neon's -pooler host, as DATABASE_URL).
+    engine_kwargs["poolclass"] = NullPool
+engine = create_engine(database_url, connect_args=connect_args, future=True, **engine_kwargs)
 
 if database_url.startswith("sqlite"):
 

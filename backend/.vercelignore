@@ -1,0 +1,6 @@
+.venv
+.env
+secrets
+uploads
+*.db
+__pycache__

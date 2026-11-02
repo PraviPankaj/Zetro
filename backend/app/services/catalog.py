@@ -3,12 +3,10 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-import aiofiles
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.core.config import get_settings
 from app.models import (
     CartItem,
     Category,
@@ -20,6 +18,7 @@ from app.models import (
     product_categories,
 )
 from app.schemas import CategoryBrief, CategoryCreate, CategoryUpdate, ProductCreate, ProductOut, ProductUpdate
+from app.services import media_storage
 from app.services.categories import assign_product_categories, category_descendant_ids
 
 PRESET_THEMES = ("playful", "classic", "fresh", "minimal")
@@ -293,17 +292,9 @@ async def upload_product_image(
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    settings = get_settings()
     ext = Path(file.filename or "img.jpg").suffix or ".jpg"
     filename = f"{shop.slug}_{product_id}_{uuid.uuid4().hex}{ext}"
-    dest_dir = Path(settings.media_root) / shop.slug
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / filename
-    async with aiofiles.open(dest, "wb") as out:
-        while chunk := await file.read(1024 * 1024):
-            await out.write(chunk)
-
-    url = f"{settings.media_url_prefix}/{shop.slug}/{filename}"
+    url = await media_storage.save_upload(f"{shop.slug}/{filename}", file)
     count = len(product.images)
     db.add(
         ProductImage(
@@ -329,13 +320,7 @@ def delete_product_image(db: Session, shop: Shop, product_id: int, image_id: int
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
 
-    settings = get_settings()
-    prefix = settings.media_url_prefix.rstrip("/")
-    if image.url.startswith(prefix + "/"):
-        rel = image.url[len(prefix) + 1 :]
-        file_path = Path(settings.media_root) / rel
-        if file_path.is_file():
-            file_path.unlink()
+    media_storage.delete(image.url)
 
     db.delete(image)
     db.commit()
